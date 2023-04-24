@@ -2,7 +2,6 @@
 
 ## Project Description
 
-Describe what you're making here
 
 
 ## Need to have list
