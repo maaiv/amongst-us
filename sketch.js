@@ -2,7 +2,20 @@ import * as THREE from 'three';
 
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+let vandal;
+
 let loader = new GLTFLoader();
+
+loader.load( 'assets/vandal/scene.gltf', function ( gltf ) {
+	vandal = gltf.scene;
+	vandal.position.set(0, 0, 6)
+	vandal.rotateY( degrees(-90) );
+	scene.add(vandal);
+}, undefined, function (error) {
+	console.error( error );
+});
+
+
 
 
 
@@ -13,6 +26,7 @@ camera.position.z = 7;
 
 let renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
+renderer.shadowMap.enabled = true;
 document.body.appendChild( renderer.domElement );
 
 // Lights
@@ -20,8 +34,11 @@ document.body.appendChild( renderer.domElement );
 scene.add( new THREE.AmbientLight( hsl(0, 0, 30) ))
 
 let pointLight = new THREE.PointLight( hsl(0, 0, 100) );
-pointLight.position.set( 0, 5, 0 );
+pointLight.position.set( 0, 4, 0 );
 pointLight.castShadow = true;
+pointLight.shadow.mapSize.width = 1024;
+pointLight.shadow.mapSize.height = 1024;
+
 scene.add( pointLight );
 
 // Torus
@@ -30,12 +47,16 @@ let geometry = new THREE.TorusKnotGeometry( 1.4, 0.2, 150, 35 );
 let material = new THREE.MeshPhongMaterial( { color: hsl(200,100,50), 
 	shininess: 1000 } );
 let knot = new THREE.Mesh( geometry, material );
+knot.castShadow = true;
+
 
 let ground = new THREE.Mesh( 
 	new THREE.PlaneGeometry(15, 15),
 	new THREE.MeshPhongMaterial( {color: hsl(0, 0, 50), shininess: 100} )
 );
 
+
+ground.receiveShadow = true;
 ground.rotateX( degrees(-90) );
 ground.translateZ(-3)
 
@@ -57,6 +78,12 @@ function animate() {
 	requestAnimationFrame( animate );
 	knot.rotation.x += 0.01;
 	knot.rotation.y += 0.01;
+
+
+
+	
+
+	// pointLight.shadow.camera.far += 0.01;
 
 	// pointLight.position.set( Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
 
