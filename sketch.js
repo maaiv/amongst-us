@@ -6,14 +6,27 @@ let vandal;
 
 let loader = new GLTFLoader();
 
-loader.load( 'assets/vandal/scene.gltf', function ( gltf ) {
-	vandal = gltf.scene;
-	vandal.position.set(0, 0, 6)
-	vandal.rotateY( degrees(-90) );
-	scene.add(vandal);
-}, undefined, function (error) {
-	console.error( error );
-});
+// loader.load( 'assets/vandal/scene.gltf', function ( gltf ) {
+// 	vandal = gltf.scene;
+// 	vandal.position.set(0, 0, 5)
+// 	vandal.rotateY( degrees(-90) );
+// 	vandal.castShadow = true;
+// 	scene.add(vandal);
+
+// 	vandal.traverse( function ( object ) {
+
+// 		if ( object.isMesh ) object.castShadow = true;
+
+// 	} );
+
+
+
+
+
+	
+// }, undefined, function (error) {
+// 	console.error( error );
+// });
 
 
 
@@ -34,10 +47,11 @@ document.body.appendChild( renderer.domElement );
 scene.add( new THREE.AmbientLight( hsl(0, 0, 30) ))
 
 let pointLight = new THREE.PointLight( hsl(0, 0, 100) );
-pointLight.position.set( 0, 4, 0 );
+pointLight.position.set( 0, 4, 8 );
 pointLight.castShadow = true;
 pointLight.shadow.mapSize.width = 1024;
 pointLight.shadow.mapSize.height = 1024;
+
 
 scene.add( pointLight );
 
@@ -49,6 +63,18 @@ let material = new THREE.MeshPhongMaterial( { color: hsl(200,100,50),
 let knot = new THREE.Mesh( geometry, material );
 knot.castShadow = true;
 
+let boxes = [];
+
+for (let i = 0; i < 2000; i++) {
+	geometry = new THREE.TorusKnotGeometry( 0.14, 0.02, 150, 35 );
+	let box = new THREE.Mesh(geometry, material);
+	box.position.y = Math.random() * 10 - 5;
+	box.position.x = Math.random() * 10 - 5;
+	box.position.z = Math.random() * 10 - 5;
+	box.castShadow = true;
+	boxes.push(box);
+	scene.add(box);
+}
 
 let ground = new THREE.Mesh( 
 	new THREE.PlaneGeometry(15, 15),
@@ -79,16 +105,16 @@ function animate() {
 	knot.rotation.x += 0.01;
 	knot.rotation.y += 0.01;
 
+	for (let box of boxes) {
+		box.rotation.y += 0.01;
+		box.rotation.x += 0.01;
+	}
 
 
-	
 
-	// pointLight.shadow.camera.far += 0.01;
-
-	// pointLight.position.set( Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
 
 	// fun += 1;
-	// knot.material.color = hsl(fun,100,50);
+	// material.color = hsl(fun,100,50);
 
 	// knot.position.set (Math.random() - 0.5,Math.random() - 0.5,Math.random() - 0.5);
 
