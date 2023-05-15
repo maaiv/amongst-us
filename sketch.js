@@ -66,7 +66,7 @@ knot.castShadow = true;
 let boxes = [];
 
 for (let i = 0; i < 2000; i++) {
-	geometry = new THREE.TorusKnotGeometry( 0.14, 0.02, 150, 35 );
+	geometry = new THREE.BoxGeometry( 0.1,0.1,0.1 );
 	let box = new THREE.Mesh(geometry, material);
 	box.position.y = Math.random() * 10 - 5;
 	box.position.x = Math.random() * 10 - 5;
@@ -94,9 +94,14 @@ scene.add( ground );
 
 scene.add( knot );
 
+let mousedYaw = 0, mousedPitch = 0;
 
+function logMovement(event) {
+	mousedYaw = event.movementX;
+	mousedPitch = event.movementY;
+}
 
-
+document.addEventListener("mousemove", logMovement);
 
 let fun = 0;
 
@@ -110,7 +115,13 @@ function animate() {
 		box.rotation.x += 0.01;
 	}
 
+	console.log(mousedYaw, mousedPitch);
 
+
+
+	document.body.addEventListener("click", async () => {
+		await document.body.requestPointerLock();
+	});	
 
 
 	// fun += 1;
@@ -118,10 +129,13 @@ function animate() {
 
 	// knot.position.set (Math.random() - 0.5,Math.random() - 0.5,Math.random() - 0.5);
 
-
-
+	// camera.rotateX(degrees(1));
+	camera.rotateY(degrees(-mousedYaw));
+	camera.rotateX(degrees(-mousedPitch));
 
 	renderer.render( scene, camera );
+	mousedYaw = 0;
+	mousedPitch = 0;
 }
 
 animate();
@@ -135,3 +149,4 @@ function hsl(h, s, l) {
 
   	return new THREE.Color(`hsl( ${h}, ${s}%, ${l}%)`);
 }
+
