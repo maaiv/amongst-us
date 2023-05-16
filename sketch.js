@@ -64,6 +64,9 @@ let knot = new THREE.Mesh( geometry, material );
 knot.castShadow = true;
 
 let boxes = [];
+let camYaw = 0; //x
+let camPitch = 0; //y
+
 
 for (let i = 0; i < 2000; i++) {
 	geometry = new THREE.BoxGeometry( 0.1,0.1,0.1 );
@@ -97,8 +100,8 @@ scene.add( knot );
 let mousedYaw = 0, mousedPitch = 0;
 
 function logMovement(event) {
-	mousedYaw = event.movementX;
-	mousedPitch = event.movementY;
+	camYaw += degrees(event.movementX);
+	camPitch += degrees(event.movementY);
 }
 
 document.addEventListener("mousemove", logMovement);
@@ -106,9 +109,25 @@ document.addEventListener("mousemove", logMovement);
 let fun = 0;
 
 function animate() {
+	let camDistance = 1;
 	requestAnimationFrame( animate );
 	knot.rotation.x += 0.01;
 	knot.rotation.y += 0.01;
+
+
+	camera.position.x = Math.cos(camYaw) * camDistance * Math.cos(camPitch);
+	camera.position.y = Math.sin(camPitch) * camDistance;
+	camera.position.z = 7 + Math.sin(camYaw) * camDistance * Math.cos(camPitch);
+
+	if (camPitch > 89) {
+		camPitch = 89;
+	  }
+	  else if (camPitch < -89) {
+		camPitch = -89;
+	  }
+
+	camera.lookAt(0, 0, 7) ;
+	// camera.lookAt(0,0,7);
 
 	for (let box of boxes) {
 		box.rotation.y += 0.01;
