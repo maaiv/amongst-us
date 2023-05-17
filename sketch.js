@@ -100,9 +100,10 @@ scene.add( knot );
 let mousedYaw = 0, mousedPitch = 0;
 
 function logMovement(event) {
-	camYaw += degrees(event.movementX);
-	camPitch += degrees(event.movementY);
+	camYaw += degrees(event.movementX/10);
+	camPitch += degrees(event.movementY/10);
 }
+
 
 document.addEventListener("mousemove", logMovement);
 
@@ -163,9 +164,134 @@ animate();
 function degrees(theta) {
 	return Math.PI * theta / 180;
 }
-
 function hsl(h, s, l) {
-
   	return new THREE.Color(`hsl( ${h}, ${s}%, ${l}%)`);
 }
 
+class Agent {
+	constructor(x, y, z, dir, h) {
+	  this.x = x;
+	  this.y = y;
+	  this.z = z;
+	  this.dir = dir;
+	  this.dx = 0;
+	  this.dy = 0;
+	  this.dz = 0;
+	  this.h = random(255);
+	  this.hold = 1;
+	  this.alive = true;
+	  this.id = noise(random(1,10));
+  
+	}
+  
+	update() {
+	  // player state if alive
+
+
+		// use knife
+		if (this.hold === 2) {
+		for (let guest of guests) {
+			if (guest.player !== my.player && mouseIsPressed && !killSFX.isPlaying()) {
+			if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
+				killSFX.play();
+				let tempDir = atan2(my.player.x - guest.player.x, my.player.z - guest.player.z);
+				partyEmit("die", {
+				id: guest.player.id,
+				dx: sin(tempDir) * -5,
+				dy: -4,
+				dz: cos(tempDir) * -5
+				});
+			}
+			}
+		}
+		}
+
+		// apply x velocity and check collisions
+		this.x += this.dx;
+		this.z += this.dz;
+
+		for (let terrainObject of shared.terrain) {
+		if (checkCollisions(this.x, this.y, this.z, terrainObject)) {
+			let n = findNormal(this.x, this.z, this.dir, terrainObject);
+			while (checkCollisions(this.x, this.y, this.z,terrainObject)) {
+			this.x -= sin(n);
+			this.z -= cos(n);
+			}
+		}
+		}
+
+		// point in direction of motion
+		if (shared.playerPerspective === 3) {
+		this.dir = atan2(this.dx,this.dz);
+		}
+		else if (shared.playerPerspective === 1) {
+		this.dir = -camYaw - 90;
+		}
+
+		// apply y velocity and check collisions
+		this.y += this.dy;
+
+		let touchingGround = false;
+
+		for (let terrainObject of shared.terrain) {
+		if (checkCollisions(this.x, this.y, this.z, terrainObject)) {
+			if (this.dy >= 0) {
+			while (checkCollisions(this.x, this.y, this.z, terrainObject)) {
+				this.y -= 0.1;
+			}
+			this.dy = 0;
+			if (keyIsDown(32)) {
+				this.dy = -shared.playerJumpPower;
+			}
+			
+			}
+			else if (this.dy < 0) {
+			while (checkCollisions(this.x, this.y, this.z, terrainObject)) {
+				this.y += 0.1;
+			}
+			this.dy = 0;
+			}
+			touchingGround = true;
+		} 
+		}
+
+		// apply gravity
+		if (!touchingGround) {
+		this.dy += shared.worldGravity;
+		}
+
+		// detect keyboard input
+		if (keyIsDown(83) + keyIsDown(87) === 1 || keyIsDown(65) + keyIsDown(68) === 1) {
+
+		// perform math stuff to condense movement controls into a "single line" (this was a terrible idea)
+		let magnitude = !keyIsDown(83) * 2 - 1;
+		let dir = 
+		(keyIsDown(68) * 0 + 
+		keyIsDown(87) * 90 +
+		keyIsDown(65) * 180 + 
+		keyIsDown(83) * 90) / 
+		(keyIsDown(68) + 
+		keyIsDown(87) + 
+		keyIsDown(65) + 
+		keyIsDown(83)) * magnitude;
+
+		// accelerate player
+		this.dx -= shared.playerAcceleration * sin(dir - camYaw);
+		this.dz -= shared.playerAcceleration * cos(dir - camYaw);
+
+		// cap player velocity
+		if (Math.sqrt(this.dx**2 + this.dz**2) > shared.playerMaxVelocity) {
+			let ratio = shared.playerMaxVelocity/Math.sqrt(this.dx**2 + this.dz**2);
+			this.dx = lerp(0,this.dx,ratio);
+			this.dz = lerp(0,this.dz,ratio);
+		}
+		}
+		else {
+		// decelerate player
+		this.dx = this.dx * shared.playerDeceleration;
+		this.dz = this.dz * shared.playerDeceleration;
+	
+
+
+	}
+  }
