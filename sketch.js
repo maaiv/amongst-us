@@ -26,7 +26,7 @@
 
 // Instantiating variables
 let camYaw = 0; //x
-let camPitch = 0; //yW
+let camPitch = 0; //y
 let camDistance = 300;
 let lightpos = [];
 
@@ -38,8 +38,8 @@ let hostTerrain = [
   {type: "box", x: 0, y: 50, z: 0, width: 100*100, height: 100, length: 100*100, rotation: 0},
   {type: "box", x: 200, y: 0, z: 0, width: 100, height: 100, length: 100, rotation: 0},
   {type: "box", x: 200, y: -150, z: 200, width: 100, height: 100, length: 100, rotation: 0},
-  {type: "polygon", x: -200, y: -100, z: 0, relativeVertices: [[0,0],[0,100],[100,100],[100,0]], height: 100, rotation: 0},
-  {type: "polygon", x: -400, y: -100, z: 0, relativeVertices: [[0,0],[0,200],[100,100],[100,0],[-300,-100]], height: 100, rotation: 0}
+  {type: "polygon", x: -200, y: 0, z: 0, relativeVertices: [[0,0],[0,100],[100,100],[100,0]], height: 100, rotation: 0},
+  {type: "polygon", x: -400, y: 0, z: 0, relativeVertices: [[0,0],[0,200],[100,100],[100,0],[-300,-100]], height: 100, rotation: 0}
 ];
 
 
@@ -83,6 +83,8 @@ function setup() {
   console.log("me", JSON.stringify(my));
   console.log("guests", JSON.stringify(guests));
   console.log("am i host?", partyIsHost());
+
+
 } 
 
 
@@ -269,28 +271,28 @@ function drawCrewMateModel(x,y,z,dir,h,hold,alive) {
 
     ellipsoid(25,30,20);
     
-    // draw helmet
-    push();
-    specularMaterial(300);
-    shininess(20);
-    ambientMaterial(0,0,0);
+    // // draw helmet
+    // push();
+    // specularMaterial(300);
+    // shininess(20);
+    // ambientMaterial(0,0,0);
 
-    translate(0,-10,14);
-    ellipsoid(15,10,13);
-    pop();
+    // translate(0,-10,14);
+    // ellipsoid(15,10,13);
+    // pop();
 
-    // draw legs
-    push();
-    translate(12,18,0);
-    ellipsoid(8,18,8);
-    translate(-24,0,0);
-    ellipsoid(8,18,8);
-    pop();
-    // draw oxygen tank
-    push();
-    translate(0,0,-18);
-    box(24,35,8);
-    pop();
+    // // draw legs
+    // push();
+    // translate(12,18,0);
+    // ellipsoid(8,18,8);
+    // translate(-24,0,0);
+    // ellipsoid(8,18,8);
+    // pop();
+    // // draw oxygen tank
+    // push();
+    // translate(0,0,-18);
+    // box(24,35,8);
+    // pop();
 
     if (hold === 2) {
       // draw knife
@@ -368,50 +370,48 @@ function drawEnvironment() {
     }
     else if (terrainObject.type === "polygon") {
 
+      let verts = terrainObject.relativeVertices;
 
-      sphere(5);
-      rotateY(terrainObject.rotation);
+      // sphere(5);
+      rotateY(-terrainObject.rotation);
 
-      let myGeometry = new p5.Geometry(10, 10, function() {
-        for(let x = 0; x <= 20; x++) {
-          for(let y = 0; y <= 20; y++) {
-            this.vertices.push(new p5.Vector(
-              x/20,
-              y/20,
-              (sin(x/20*TWO_PI*4) + cos(y/20*TWO_PI)) / 10
-              // random()/10
-            ));
-          }
-        }
-    
-        this.computeFaces();
-        this.computeNormals();
-      });
+      beginShape();
+      normal(0,1,0);
+      for (let vert of verts) {
+        vertex(vert[0], 0, vert[1]);
+      }
+      endShape(CLOSE);
 
-      model(myGeometry);
+      beginShape();
+      normal(0,-1,0);
+      for (let vert of verts) {
+        vertex(vert[0], -terrainObject.height, vert[1]);
+      }
+      endShape(CLOSE);
+
 
       
-      // rotate(frameCount);
 
-      // rotateX(-90);  
+      for (let i = 0; i < verts.length; i++) {
+        let j = (i + 1) % verts.length;
 
-      // beginShape();
-      // for (let vert of terrainObject.relativeVertices) {
-      //   vertex(vert[0], vert[1], 0);
-      // }
-      // endShape(CLOSE);
+        beginShape();
 
-      // rotateX(180);
+        let planeNormal = new p5.Vector(
+          verts[j][0] - verts[i][0],
+          verts[j][1] - verts[i][1]
+        ).rotate(90);
 
-      // beginShape();
-      // for (let vert of terrainObject.relativeVertices) {
-      //   vertex(vert[0], -vert[1], terrainObject.height);
-      // }
-      // endShape(CLOSE);
+        normal(planeNormal.x, 0, planeNormal.y);
+        
+        // normal(-(verts[j][0] - verts[i][0]) / (verts[j][1] - verts[i][1]), 0, 1);
+        vertex(verts[i][0], 0, verts[i][1]);
+        vertex(verts[j][0], 0, verts[j][1]);
+        vertex(verts[j][0], -terrainObject.height, verts[j][1]);
+        vertex(verts[i][0], -terrainObject.height, verts[i][1]);
+        endShape(FILL);
+      } 
 
-
-
-      // cylinder(terrainObject.radius,terrainObject.height);
     }
     pop();
   }
@@ -466,16 +466,31 @@ function findNormal(playerX,playerZ,playerDir,terrainObject) {
   // set collide type
   if (terrainObject.type === "box") {
     normalCollide = (x, z, dir, terrainObject) => collidePointRect(
-      x + sin(dir) * 40,
-      z + cos(dir) * 40,
-      terrainObject.x - terrainObject.width/2, 
-      terrainObject.z - terrainObject.length/2,
-      terrainObject.width,
+      angleShift(x + sin(dir) * 40, z + cos(dir) * 40, terrainObject.rotation).x,
+      angleShift(x + sin(dir) * 40, z + cos(dir) * 40, terrainObject.rotation).y,
+      angleShift(terrainObject.x - terrainObject.width/2, terrainObject.z - terrainObject.length/2, terrainObject.rotation).x,
+      angleShift(terrainObject.x - terrainObject.width/2, terrainObject.z - terrainObject.length/2, terrainObject.rotation).y,
+      // x + sin(dir) * 40,
+      // z + cos(dir) * 40,
+      // terrainObject.x - terrainObject.width/2, 
+      // terrainObject.z - terrainObject.length/2,
+      terrainObject.width,  
       terrainObject.length,
     );
   }
   else if (terrainObject.type === "polygon") {
-    1 + 1;
+    normalCollide = (x, z, dir, terrainObject) => collidePointRect(
+      angleShift(x + sin(dir) * 40, z + cos(dir) * 40, terrainObject.rotation).x,
+      angleShift(x + sin(dir) * 40, z + cos(dir) * 40, terrainObject.rotation).y,
+      angleShift(terrainObject.x - terrainObject.width/2, terrainObject.z - terrainObject.length/2, terrainObject.rotation).x,
+      angleShift(terrainObject.x - terrainObject.width/2, terrainObject.z - terrainObject.length/2, terrainObject.rotation).y,
+      // x + sin(dir) * 40,
+      // z + cos(dir) * 40,
+      // terrainObject.x - terrainObject.width/2, 
+      // terrainObject.z - terrainObject.length/2,
+      terrainObject.width,  
+      terrainObject.length,
+    );
   }
   else if (terrainObject.type === "cylinder") {
     normalCollide = (x, z, dir, terrainObject) => collidePointCircle(
@@ -541,6 +556,13 @@ function keyPressed() {
   if (keyCode === 80) {
     shared.debugState = !shared.debugState;
   } 
+}
+
+function angleShift(x, y, dt) {
+  let theta = atan2(y,x) + dt;
+  let localMag = Math.sqrt(x * x + y * y);
+  return {x:cos(theta) * localMag, y:sin(theta) * localMag};
+
 }
 
 // Crewmate class for holding data and taking user input
