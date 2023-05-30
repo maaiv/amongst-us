@@ -38,8 +38,8 @@ let hostTerrain = [
   {type: "box", x: 0, y: 50, z: 0, width: 100*100, height: 100, length: 100*100, rotation: 0},
   {type: "box", x: 200, y: 0, z: 0, width: 100, height: 100, length: 100, rotation: 0},
   {type: "box", x: 200, y: -150, z: 200, width: 100, height: 100, length: 100, rotation: 0},
-  {type: "polygon", x: -200, y: 0, z: 0, relativeVertices: [[0,0],[0,100],[100,100],[100,0]], height: 100, rotation: 0},
-  {type: "polygon", x: -400, y: 0, z: 0, relativeVertices: [[0,0],[0,200],[100,100],[100,0],[-300,-100]], height: 100, rotation: 0}
+  {type: "polygon", x: -200, y: 20, z: 300, relativeVertices: [[0,0],[0,200],[100,200],[100,-100], [-200,-100], [-200,200],[-100,200], [-100,0]], height: 100, rotation: 0},
+  // {type: "polygon", x: -400, y: 20, z: 0, relativeVertices: [[0,0],[0,200],[100,100],[100,0],[-300,-100]], height: 100, rotation: 0}
 ];
 
 
@@ -127,6 +127,7 @@ function drawInit() {
 // Creates a visualizer for the different hitboxes and colliders above the player if in debug mode
 function collideVisual() {
   if (shared.debugState) {
+    
     collideVisualCanvas.background(255);
     // draw environment hitboxes
     for (let terrainObject of shared.terrain) {
@@ -144,11 +145,13 @@ function collideVisual() {
         collideVisualCanvas.circle(cylinderMiniX,cylinderMiniZ,terrainObject.radius/5);
       }
       else if (terrainObject.type === "polygon") {
+        collideVisualCanvas.fill("red");
         let polyMiniX = terrainObject.x/10 + 90;
         let polyMiniZ = terrainObject.z/10 + 90;
         collideVisualCanvas.translate(polyMiniX, polyMiniZ);
         collideVisualCanvas.rotate(terrainObject.rotation);
         collideVisualCanvas.beginShape();
+        
         for (let vert of terrainObject.relativeVertices) {
           collideVisualCanvas.vertex(vert[0]/10, vert[1]/10);
         }
@@ -372,15 +375,17 @@ function drawEnvironment() {
 
       let verts = terrainObject.relativeVertices;
 
-      // sphere(5);
+      sphere(15);
       rotateY(-terrainObject.rotation);
 
       beginShape();
+      
       normal(0,1,0);
       for (let vert of verts) {
         vertex(vert[0], 0, vert[1]);
       }
       endShape(CLOSE);
+
 
       beginShape();
       normal(0,-1,0);
@@ -444,6 +449,20 @@ function checkCollisions(playerX,playerY,playerZ,terrainObject) {
       return playerY > terrainObject.y - terrainObject.height/2 && playerY - 65 < terrainObject.y + terrainObject.height/2;
     }
   }
+
+  else if (terrainObject.type === "polygon") {
+    console.log(playerY, terrainObject.y - terrainObject.height , terrainObject.y);
+    if (collideCirclePoly(
+      playerX - terrainObject.x,
+      playerZ - terrainObject.z,
+      60,
+      terrainObject.relativeVertices.map( (verts) => createVector(verts[0], verts[1]) ),
+      true
+    )) {
+      return playerY > terrainObject.y - terrainObject.height && playerY - 65 < terrainObject.y;
+    }
+  }
+
   else if (terrainObject.type === "cylinder") {
     if (collideCircleCircle(
       terrainObject.x,
@@ -466,30 +485,21 @@ function findNormal(playerX,playerZ,playerDir,terrainObject) {
   // set collide type
   if (terrainObject.type === "box") {
     normalCollide = (x, z, dir, terrainObject) => collidePointRect(
-      angleShift(x + sin(dir) * 40, z + cos(dir) * 40, terrainObject.rotation).x,
-      angleShift(x + sin(dir) * 40, z + cos(dir) * 40, terrainObject.rotation).y,
-      angleShift(terrainObject.x - terrainObject.width/2, terrainObject.z - terrainObject.length/2, terrainObject.rotation).x,
-      angleShift(terrainObject.x - terrainObject.width/2, terrainObject.z - terrainObject.length/2, terrainObject.rotation).y,
-      // x + sin(dir) * 40,
-      // z + cos(dir) * 40,
-      // terrainObject.x - terrainObject.width/2, 
-      // terrainObject.z - terrainObject.length/2,
+      x + sin(dir) * 40,
+      z + cos(dir) * 40,
+      terrainObject.x - terrainObject.width/2,
+      terrainObject.z - terrainObject.length/2,
       terrainObject.width,  
       terrainObject.length,
     );
   }
   else if (terrainObject.type === "polygon") {
-    normalCollide = (x, z, dir, terrainObject) => collidePointRect(
-      angleShift(x + sin(dir) * 40, z + cos(dir) * 40, terrainObject.rotation).x,
-      angleShift(x + sin(dir) * 40, z + cos(dir) * 40, terrainObject.rotation).y,
-      angleShift(terrainObject.x - terrainObject.width/2, terrainObject.z - terrainObject.length/2, terrainObject.rotation).x,
-      angleShift(terrainObject.x - terrainObject.width/2, terrainObject.z - terrainObject.length/2, terrainObject.rotation).y,
-      // x + sin(dir) * 40,
-      // z + cos(dir) * 40,
-      // terrainObject.x - terrainObject.width/2, 
-      // terrainObject.z - terrainObject.length/2,
-      terrainObject.width,  
-      terrainObject.length,
+    // let polyVectors = terrainObject.relativeVertices.forEach( verts => createVector(verts[0], verts[1]) );
+    
+    normalCollide = (x, z, dir, terrainObject) => collidePointPoly(
+      x - terrainObject.x + sin(dir) * 40,
+      z - terrainObject.z + cos(dir) * 40,
+      terrainObject.relativeVertices.map( verts => createVector(verts[0], verts[1]) )
     );
   }
   else if (terrainObject.type === "cylinder") {
@@ -499,6 +509,7 @@ function findNormal(playerX,playerZ,playerDir,terrainObject) {
       terrainObject.x, 
       terrainObject.z,
       terrainObject.radius * 2,
+      true
     );
   }
 
