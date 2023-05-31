@@ -535,15 +535,14 @@ function findNormal(playerX,playerY,playerZ,playerDir,terrainObject) {
     Loop:
     for (let i = 0; i <= 360; i++) {
       tempDir += 1;
+      let notCollided = true;
       for (let thisObject of shared.terrain) {
         if (playerY > thisObject.y - thisObject.height/2 && playerY - 65 < thisObject.y + thisObject.height/2) {
-          
-          if (normalCollide(playerX,playerZ,tempDir,thisObject)) {
-            console.log(tempDir);
-            break Loop;
-          }          
+          notCollided = notCollided * !normalCollide(playerX,playerZ,tempDir,thisObject)
         }
-
+      }
+      if (notCollided) {
+        break Loop;
       }
     }
 
@@ -554,13 +553,14 @@ function findNormal(playerX,playerY,playerZ,playerDir,terrainObject) {
     Loop:
     for (let i = 0; i <= 360; i++) {
       tempDir -= 1;
+      let notCollided = true;
       for (let thisObject of shared.terrain) {
         if (playerY > thisObject.y - thisObject.height/2 && playerY - 65 < thisObject.y + thisObject.height/2) {
-          if (normalCollide(playerX,playerZ,tempDir,thisObject)) {
-            console.log(tempDir);
-            break Loop;
-          }
+          notCollided = notCollided * !normalCollide(playerX,playerZ,tempDir,thisObject)
         }
+      }
+      if (notCollided) {
+        break Loop;
       }
     }
     dir2 = tempDir;
