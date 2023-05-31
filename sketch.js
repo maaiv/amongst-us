@@ -39,7 +39,7 @@ let hostTerrain = [
   {type: "box", x: 200, y: 0, z: 0, width: 100, height: 100, length: 100, rotation: 0},
   {type: "box", x: 200, y: -150, z: 200, width: 100, height: 100, length: 100, rotation: 0},
   {type: "polygon", x: -200, y: 20, z: 300, relativeVertices: [[0,0],[0,200],[100,200],[100,-100], [-200,-100], [-200,200],[-100,200], [-100,0]], height: 100, rotation: 0},
-  // {type: "polygon", x: -400, y: 20, z: 0, relativeVertices: [[0,0],[0,200],[100,100],[100,0],[-300,-100]], height: 100, rotation: 0}
+  {type: "polygon", x: -400, y: 20, z: 0, relativeVertices: [[0,0],[0,200],[100,100],[100,0],[-300,-100]], height: 100, rotation: -10}
 ];
 
 
@@ -102,6 +102,8 @@ function draw() {
   createLights();
 
   drawPlayers();
+
+  updateEnvironment();
 
   drawEnvironment();
 }
@@ -267,35 +269,34 @@ function drawCrewMateModel(x,y,z,dir,h,hold,alive) {
   ambientMaterial(h, 255, 255);
   translate(x,y-36,z);
   rotateY(dir);
-  rotateX(x);
-  rotateZ(z);
+
   if (alive) {
     // draw main body
 
     ellipsoid(25,30,20);
     
-    // // draw helmet
-    // push();
-    // specularMaterial(300);
-    // shininess(20);
-    // ambientMaterial(0,0,0);
+    // draw helmet
+    push();
+    specularMaterial(300);
+    shininess(20);
+    ambientMaterial(0,0,0);
 
-    // translate(0,-10,14);
-    // ellipsoid(15,10,13);
-    // pop();
+    translate(0,-10,14);
+    ellipsoid(15,10,13);
+    pop();
 
-    // // draw legs
-    // push();
-    // translate(12,18,0);
-    // ellipsoid(8,18,8);
-    // translate(-24,0,0);
-    // ellipsoid(8,18,8);
-    // pop();
-    // // draw oxygen tank
-    // push();
-    // translate(0,0,-18);
-    // box(24,35,8);
-    // pop();
+    // draw legs
+    push();
+    translate(12,18,0);
+    ellipsoid(8,18,8);
+    translate(-24,0,0);
+    ellipsoid(8,18,8);
+    pop();
+    // draw oxygen tank
+    push();
+    translate(0,0,-18);
+    box(24,35,8);
+    pop();
 
     if (hold === 2) {
       // draw knife
@@ -352,6 +353,15 @@ function drawCrewMateModel(x,y,z,dir,h,hold,alive) {
     pop();
   }
   pop();
+}
+
+function updateEnvironment() {
+  for (let terrainObject of shared.terrain) {
+    if (terrainObject.type === "polygon") {
+      // terrainObject.x += 0.5;
+    }
+    
+  }
 }
 
 // Draw terrain
@@ -451,12 +461,11 @@ function checkCollisions(playerX,playerY,playerZ,terrainObject) {
   }
 
   else if (terrainObject.type === "polygon") {
-    console.log(playerY, terrainObject.y - terrainObject.height , terrainObject.y);
     if (collideCirclePoly(
       playerX - terrainObject.x,
       playerZ - terrainObject.z,
       60,
-      terrainObject.relativeVertices.map( (verts) => createVector(verts[0], verts[1]) ),
+      terrainObject.relativeVertices.map( verts => createVector( angleShift( verts[0], verts[1], terrainObject.rotation).x,  angleShift( verts[0], verts[1], terrainObject.rotation).y)),
       true
     )) {
       return playerY > terrainObject.y - terrainObject.height && playerY - 65 < terrainObject.y;
@@ -479,37 +488,41 @@ function checkCollisions(playerX,playerY,playerZ,terrainObject) {
 }
 
 // Calculate the normal angle between the player and the collided object
-function findNormal(playerX,playerZ,playerDir,terrainObject) {
+function findNormal(playerX,playerY,playerZ,playerDir,terrainObject) {
   let normalCollide;
 
   // set collide type
   if (terrainObject.type === "box") {
-    normalCollide = (x, z, dir, terrainObject) => collidePointRect(
-      x + sin(dir) * 40,
-      z + cos(dir) * 40,
+    normalCollide = (x, z, dir, terrainObject) => collideRectCircle(
       terrainObject.x - terrainObject.width/2,
       terrainObject.z - terrainObject.length/2,
       terrainObject.width,  
       terrainObject.length,
+      x + sin(dir) * 30,
+      z + cos(dir) * 30,
+      40
+
     );
   }
   else if (terrainObject.type === "polygon") {
     // let polyVectors = terrainObject.relativeVertices.forEach( verts => createVector(verts[0], verts[1]) );
     
-    normalCollide = (x, z, dir, terrainObject) => collidePointPoly(
-      x - terrainObject.x + sin(dir) * 40,
-      z - terrainObject.z + cos(dir) * 40,
-      terrainObject.relativeVertices.map( verts => createVector(verts[0], verts[1]) )
+    normalCollide = (x, z, dir, terrainObject) => collideCirclePoly(
+      x - terrainObject.x + sin(dir) * 30,
+      z - terrainObject.z + cos(dir) * 30,
+      40,
+      terrainObject.relativeVertices.map( verts => createVector( angleShift( verts[0], verts[1], terrainObject.rotation).x,  angleShift( verts[0], verts[1], terrainObject.rotation).y)),
+      true
     );
   }
   else if (terrainObject.type === "cylinder") {
-    normalCollide = (x, z, dir, terrainObject) => collidePointCircle(
-      x + sin(dir) * 40,
-      z + cos(dir) * 40,
+    normalCollide = (x, z, dir, terrainObject) => collideCircleCircle(
+      x + sin(dir) * 30,
+      z + cos(dir) * 30,
+      40,
       terrainObject.x, 
       terrainObject.z,
-      terrainObject.radius * 2,
-      true
+      terrainObject.radius * 2
     );
   }
 
@@ -519,30 +532,68 @@ function findNormal(playerX,playerZ,playerDir,terrainObject) {
   if (normalCollide(playerX,playerZ,tempDir,terrainObject)) {
 
     // find right-most point
-    while (normalCollide(playerX,playerZ,tempDir,terrainObject)) {
+    Loop:
+    for (let i = 0; i <= 360; i++) {
       tempDir += 1;
+      for (let thisObject of shared.terrain) {
+        if (playerY > thisObject.y - thisObject.height/2 && playerY - 65 < thisObject.y + thisObject.height/2) {
+          
+          if (normalCollide(playerX,playerZ,tempDir,thisObject)) {
+            console.log(tempDir);
+            break Loop;
+          }          
+        }
+
+      }
     }
+
     dir1 = tempDir;
 
     // find left-most point
     tempDir = playerDir;
-    while (normalCollide(playerX,playerZ,tempDir,terrainObject)) {
+    Loop:
+    for (let i = 0; i <= 360; i++) {
       tempDir -= 1;
+      for (let thisObject of shared.terrain) {
+        if (playerY > thisObject.y - thisObject.height/2 && playerY - 65 < thisObject.y + thisObject.height/2) {
+          if (normalCollide(playerX,playerZ,tempDir,thisObject)) {
+            console.log(tempDir);
+            break Loop;
+          }
+        }
+      }
     }
     dir2 = tempDir;
   }
 
   else {
     // find right-most point
-    while (!normalCollide(playerX,playerZ,tempDir,terrainObject)) {
+    Loop:
+    for (let i = 0; i <= 3600; i++) {
       tempDir += 1;
+      for (let thisObject of shared.terrain) {
+        if (playerY > terrainObject.y - terrainObject.height/2 && playerY - 65 < terrainObject.y + terrainObject.height/2) {
+          if (!normalCollide(playerX,playerZ,tempDir,thisObject)) {
+            break Loop;
+          }
+        }
+      }
     }
+
     dir1 = tempDir;
 
     // find left-most point
-    tempDir = playerDir;
-    while (!normalCollide(playerX,playerZ,tempDir,terrainObject)) {
-      tempDir -= 1;
+
+    Loop:
+    for (let i = 0; i <= 3600; i++) {
+      tempDir += 1;
+      for (let thisObject of shared.terrain) {
+        if (playerY > terrainObject.y - terrainObject.height/2 && playerY - 65 < terrainObject.y + terrainObject.height/2) {
+          if (!normalCollide(playerX,playerZ,tempDir,thisObject)) {
+            break Loop;
+          }
+        }
+      }
     }
     dir2 = tempDir + 360;
   }
@@ -629,16 +680,18 @@ class Crewmate {
       // apply x velocity and check collisions
       this.x += this.dx;
       this.z += this.dz;
-
+      
       for (let terrainObject of shared.terrain) {
         if (checkCollisions(this.x, this.y, this.z, terrainObject)) {
-          let n = findNormal(this.x, this.z, this.dir, terrainObject);
+          let n = findNormal(this.x, this.y, this.z, this.dir, terrainObject);
           while (checkCollisions(this.x, this.y, this.z,terrainObject)) {
-            this.x -= sin(n);
-            this.z -= cos(n);
+            this.x -= sin(n)/10;
+            this.z -= cos(n)/10;
           }
+          
         }
       }
+
 
       // point in direction of motion
       if (shared.playerPerspective === 3) {
@@ -725,7 +778,7 @@ class Crewmate {
 
       for (let terrainObject of shared.terrain) {
         if (checkCollisions(this.x, this.y, this.z, terrainObject)) {
-          let n = findNormal(this.x, this.z, this.dir, terrainObject);
+          let n = findNormal(this.x, this.y, this.z, this.dir, terrainObject);
           while (checkCollisions(this.x, this.y, this.z,terrainObject)) {
             this.x -= sin(n);
             this.z -= cos(n);
