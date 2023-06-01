@@ -38,10 +38,13 @@ let hostTerrain = [
   {type: "box", x: 0, y: 50, z: 0, width: 100*100, height: 100, length: 100*100, rotation: 0},
   {type: "box", x: 200, y: 0, z: 0, width: 100, height: 100, length: 100, rotation: 0},
   {type: "box", x: 200, y: -150, z: 200, width: 100, height: 100, length: 100, rotation: 0},
-  {type: "polygon", x: -200, y: 20, z: 300, relativeVertices: [[0,0],[0,200],[100,200],[100,-100], [-200,-100], [-200,200],[-100,200], [-100,0]], height: 100, rotation: 0},
-  {type: "polygon", x: -400, y: 20, z: 0, relativeVertices: [[0,0],[0,200],[100,100],[100,0],[-300,-100]], height: 100, rotation: -10}
+  // {type: "polygon", x: -200, y: 20, z: 300, relativeVertices: [[0,0],[0,200],[100,200],[100,-100], [-200,-100], [-200,200],[-100,200], [-100,0]], height: 100, rotation: 0},
+  // {type: "polygon", x: -400, y: 20, z: 0, relativeVertices: [[0,0],[0,200],[100,100],[100,0],[-300,-100]], height: 100, rotation: -10}
 ];
 
+for (let i = 0; i < 60; i++) {
+  hostTerrain.push({type: "box", x: 200 + i * 200, y: 0, z: 0, width: 100, height: 100, length: 100, rotation: 0}); 
+}
 
 // Connect to the server and shared data, and load sounds
 function preload() {
@@ -487,50 +490,48 @@ function checkCollisions(playerX,playerY,playerZ,terrainObject) {
   return false;
 }
 
-// Calculate the normal angle between the player and the collided object
-function findNormal(playerX,playerY,playerZ,playerDir,terrainObject) {
-  let normalCollide;
-
+function normalCollide(x, z, dir, terrainObject) {
   // set collide type
   if (terrainObject.type === "box") {
-    normalCollide = (x, z, dir, terrainObject) => collideRectCircle(
+    return collideRectCircle(
       terrainObject.x - terrainObject.width/2,
       terrainObject.z - terrainObject.length/2,
       terrainObject.width,  
       terrainObject.length,
       x + sin(dir) * 30,
       z + cos(dir) * 30,
-      40
-
+      60
     );
   }
   else if (terrainObject.type === "polygon") {
     // let polyVectors = terrainObject.relativeVertices.forEach( verts => createVector(verts[0], verts[1]) );
-    
-    normalCollide = (x, z, dir, terrainObject) => collideCirclePoly(
+    return collideCirclePoly(
       x - terrainObject.x + sin(dir) * 30,
       z - terrainObject.z + cos(dir) * 30,
-      40,
+      60,
       terrainObject.relativeVertices.map( verts => createVector( angleShift( verts[0], verts[1], terrainObject.rotation).x,  angleShift( verts[0], verts[1], terrainObject.rotation).y)),
       true
     );
   }
   else if (terrainObject.type === "cylinder") {
-    normalCollide = (x, z, dir, terrainObject) => collideCircleCircle(
+    return collideCircleCircle(
       x + sin(dir) * 30,
       z + cos(dir) * 30,
-      40,
+      60,
       terrainObject.x, 
       terrainObject.z,
       terrainObject.radius * 2
     );
   }
+}
+
+// Calculate the normal angle between the player and the collided object
+function findNormal(playerX,playerY,playerZ,playerDir,terrainObject) {
 
   let tempDir = playerDir;
   let dir1;
   let dir2;
   if (normalCollide(playerX,playerZ,tempDir,terrainObject)) {
-
     // find right-most point
     Loop:
     for (let i = 0; i <= 360; i++) {
@@ -538,7 +539,7 @@ function findNormal(playerX,playerY,playerZ,playerDir,terrainObject) {
       let notCollided = true;
       for (let thisObject of shared.terrain) {
         if (playerY > thisObject.y - thisObject.height/2 && playerY - 65 < thisObject.y + thisObject.height/2) {
-          notCollided = notCollided * !normalCollide(playerX,playerZ,tempDir,thisObject)
+          notCollided = notCollided * !normalCollide(playerX,playerZ,tempDir,thisObject);
         }
       }
       if (notCollided) {
@@ -547,16 +548,15 @@ function findNormal(playerX,playerY,playerZ,playerDir,terrainObject) {
     }
 
     dir1 = tempDir;
-
     // find left-most point
     tempDir = playerDir;
     Loop:
     for (let i = 0; i <= 360; i++) {
-      tempDir -= 1;
+      tempDir -= 1; 
       let notCollided = true;
       for (let thisObject of shared.terrain) {
         if (playerY > thisObject.y - thisObject.height/2 && playerY - 65 < thisObject.y + thisObject.height/2) {
-          notCollided = notCollided * !normalCollide(playerX,playerZ,tempDir,thisObject)
+          notCollided = notCollided * !normalCollide(playerX,playerZ,tempDir,thisObject);
         }
       }
       if (notCollided) {
@@ -569,36 +569,40 @@ function findNormal(playerX,playerY,playerZ,playerDir,terrainObject) {
   else {
     // find right-most point
     Loop:
-    for (let i = 0; i <= 3600; i++) {
+    for (let i = 0; i <= 360; i++) {
       tempDir += 1;
+      let notCollided = true;
       for (let thisObject of shared.terrain) {
-        if (playerY > terrainObject.y - terrainObject.height/2 && playerY - 65 < terrainObject.y + terrainObject.height/2) {
-          if (!normalCollide(playerX,playerZ,tempDir,thisObject)) {
-            break Loop;
-          }
+        if (playerY > thisObject.y - thisObject.height/2 && playerY - 65 < thisObject.y + thisObject.height/2) {
+          notCollided = notCollided * !normalCollide(playerX,playerZ,tempDir,thisObject);
         }
+      }
+      if (! notCollided) {
+        break Loop;
       }
     }
 
     dir1 = tempDir;
-
     // find left-most point
-
+    tempDir = playerDir;
     Loop:
-    for (let i = 0; i <= 3600; i++) {
-      tempDir += 1;
+    for (let i = 0; i <= 360; i++) {
+      tempDir -= 1;
+      let notCollided = true;
       for (let thisObject of shared.terrain) {
-        if (playerY > terrainObject.y - terrainObject.height/2 && playerY - 65 < terrainObject.y + terrainObject.height/2) {
-          if (!normalCollide(playerX,playerZ,tempDir,thisObject)) {
-            break Loop;
-          }
+        if (playerY > thisObject.y - thisObject.height/2 && playerY - 65 < thisObject.y + thisObject.height/2) {
+          notCollided = notCollided * !normalCollide(playerX,playerZ,tempDir,thisObject);
         }
       }
+      if (! notCollided) {
+        break Loop;
+      }
     }
+
     dir2 = tempDir + 360;
   }
 
-  return round((dir1 + dir2)/2,2);
+  return round((dir1 + dir2)/2,2);  
 }
 
 // Update player if killed
