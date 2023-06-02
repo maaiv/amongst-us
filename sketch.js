@@ -42,9 +42,6 @@ let hostTerrain = [
   // {type: "polygon", x: -400, y: 20, z: 0, relativeVertices: [[0,0],[0,200],[100,100],[100,0],[-300,-100]], height: 100, rotation: -10}
 ];
 
-for (let i = 0; i < 60; i++) {
-  hostTerrain.push({type: "box", x: 200 + i * 200, y: 0, z: 0, width: 100, height: 100, length: 100, rotation: 0}); 
-}
 
 // Connect to the server and shared data, and load sounds
 function preload() {
@@ -62,8 +59,10 @@ function preload() {
     playerMaxVelocity: 6,
     playerJumpPower: 5,
     worldGravity: 0.15,
-    playerPerspective: 3
+    playerPerspective: 3,
+    chat: [{content: "bello", life: 10}]
   });
+
   killSFX = loadSound("assets/killSFX.mp3");
   partySubscribe("die", die);
 }
@@ -102,6 +101,8 @@ function draw() {
 
   updateCam();
 
+  updateUI();
+
   createLights();
 
   drawPlayers();
@@ -113,7 +114,7 @@ function draw() {
 
 // Set background and lock pointer light
 function drawInit() {
-  background(0);
+  // background(0);
  
   // create a global light so WEBGL doesn't just break when there are no lights
   pointLight(
@@ -216,6 +217,12 @@ function updateCam() {
     camPitch -= movedY/10;
 
     cam.lookAt(my.player.x,my.player.y - 60,my.player.z);
+  }
+}
+
+function updateUI() {
+  for (let message of shared.chat) {
+    console.log(message.content, message.life);
   }
 }
 
@@ -447,6 +454,7 @@ function drawEnvironment() {
   }
 }
 
+
 // Check if a player is intersecting with the terrain
 function checkCollisions(playerX,playerY,playerZ,terrainObject) {
   if (terrainObject.type === "box") {
@@ -604,6 +612,8 @@ function findNormal(playerX,playerY,playerZ,playerDir,terrainObject) {
 
   return round((dir1 + dir2)/2,2);  
 }
+
+
 
 // Update player if killed
 function die(data) {
