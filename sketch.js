@@ -30,7 +30,7 @@ let camPitch = 0; //y
 let camDistance = 300;
 let lightpos = [];
 
-let my, guests, shared, killSFX, cam, collideVisualCanvas, mrGuest;
+let my, guests, shared, killSFX, cam, collideVisualCanvas, mrGuest, canvas3D;
 
 
 // Create environment objects
@@ -60,7 +60,14 @@ function preload() {
     playerJumpPower: 5,
     worldGravity: 0.15,
     playerPerspective: 3,
-    chat: [{content: "bello", life: 10}]
+    chat: [
+      {content: "Frosty the snowman was a fairy tale they say he was made of snow but the children know how he came to life one day", life: 10},
+      {content: "Frosty the snowman was a jolly happy soul", life: 10}, 
+      {content: "with a corn cob pipe and a button nose", life: 10},
+      {content: "and two eyes made out of coal", life: 10},
+      {content: "Frosty the snowman was a fairy tale they say he was made of snow but the children know how he came to life one day", life: 10},
+      
+    ]
   });
 
   killSFX = loadSound("assets/killSFX.mp3");
@@ -69,26 +76,31 @@ function preload() {
 
 // Set sketch modes, canvas, and subscribe to die message
 function setup() {
-  createCanvas(windowWidth, windowHeight, WEBGL);
+  // noLoop();
+  createCanvas(windowWidth, windowHeight);
+  canvas3D = createGraphics(windowWidth,windowHeight, WEBGL);
   angleMode(DEGREES);
-  colorMode(HSB, 255);
-  cam = createCamera();
 
+  canvas3D.colorMode(HSB, 255);
+  
+  cam = canvas3D.createCamera();
 
   // instantiate player object and hitbox visual
   my.player = new Crewmate(0,0,0,0,0);
+  
   collideVisualCanvas = createGraphics(180,180);
   collideVisualCanvas.angleMode(DEGREES);
+
+  canvas3D.angleMode(DEGREES);
 
 
   // log shared data
   console.log("me", JSON.stringify(my));
   console.log("guests", JSON.stringify(guests));
   console.log("am i host?", partyIsHost());
-
+  // noLoop();
 
 } 
-
 
 // Game update loop
 function draw() {
@@ -96,32 +108,36 @@ function draw() {
   drawInit();
 
   collideVisual();
-
+  
   updateMyPlayer();
 
   updateCam();
-
-  updateUI();
 
   createLights();
 
   drawPlayers();
 
   updateEnvironment();
-
+  
   drawEnvironment();
+  // background(255);
+  image(canvas3D,0,0,width,height);
+
+  updateUI();
+
 }
 
 // Set background and lock pointer light
 function drawInit() {
-  // background(0);
- 
+  canvas3D.reset();
+  canvas3D.background(0);
+  
   // create a global light so WEBGL doesn't just break when there are no lights
-  pointLight(
+  canvas3D.pointLight(
     0,0,shared.ambientLevel,
     0,-1900,0
   );
-  ambientLight(shared.ambientLevel/2);
+  canvas3D.ambientLight(shared.ambientLevel/2);
 
   if (mouseIsPressed) {
     requestPointerLock();
@@ -174,10 +190,10 @@ function collideVisual() {
     }
 
     //draw visualizer above the player model
-    push();
-    translate(my.player.x - 50,my.player.y-65 - 100,my.player.z);
-    image(collideVisualCanvas,0,0,100,100);
-    pop();
+    canvas3D.push();
+    canvas3D.translate(my.player.x - 50,my.player.y-65 - 100,my.player.z);
+    canvas3D.image(collideVisualCanvas,0,0,100,100);
+    canvas3D.pop();
   }
 }
 
@@ -220,11 +236,8 @@ function updateCam() {
   }
 }
 
-function updateUI() {
-  for (let message of shared.chat) {
-    console.log(message.content, message.life);
-  }
-}
+
+
 
 // Create and store xy coordinate of each player light
 function createLights() {
@@ -232,7 +245,7 @@ function createLights() {
 
   for (let guest of guests) {
     if (guest.player.hold === 1) {
-      spotLight(
+      canvas3D.spotLight(
         0,0,255,
         guest.player.x,guest.player.y - 400,guest.player.z,
         0,1,0,
@@ -247,122 +260,124 @@ function createLights() {
 function drawPlayers() {
   for (let guest of guests) {
     if (guest.player !== my.player || shared.playerPerspective === 3) {
-      push();
+      canvas3D.push();
       // calculate ambient lighting depending on the closest distance to another light before rendering
       let minimumDistance = min(lightpos.map(v => dist(guest.player.x,guest.player.z,v[0], v[1])));
-      ambientLight(map(minimumDistance,0,125 + 50*shared.lightSize,105,5,true));
+      canvas3D.ambientLight(map(minimumDistance,0,125 + 50*shared.lightSize,105,5,true));
       drawCrewMateModel(guest.player.x,guest.player.y,guest.player.z,guest.player.dir,guest.player.h,guest.player.hold,guest.player.alive);
-      pop();
+      canvas3D.pop();
     }
   }
 
   // draw demo player model if in debug mode
   if (shared.debugState) {
-    push();
+    canvas3D.push();
     let minimumDistance = min(lightpos.map(v => dist(0, 0, v[0], v[1])));
-    ambientLight(map(minimumDistance, 0, 125 + 50 * shared.lightSize, 105, 5, true));
+    canvas3D.ambientLight(map(minimumDistance, 0, 125 + 50 * shared.lightSize, 105, 5, true));
     drawCrewMateModel(0,0,0,0,180,2,false);
-    pop();
+    canvas3D.pop();
   }
 }
 
 // Draw player model
 function drawCrewMateModel(x,y,z,dir,h,hold,alive) {
   
-  push();
+  canvas3D.push();
   
   
   // inititalize materials and position
-  noStroke();
-  specularMaterial(25);
-  shininess(10000);
-  ambientMaterial(h, 255, 255);
-  translate(x,y-36,z);
-  rotateY(dir);
+  canvas3D.noStroke();
+  canvas3D.specularMaterial(25);
+  canvas3D.shininess(10000);
+  canvas3D.ambientMaterial(h, 255, 255);
+  canvas3D.translate(x,y-36,z);
+  canvas3D.rotateY(dir);
 
   if (alive) {
     // draw main body
 
-    ellipsoid(25,30,20);
+    canvas3D.ellipsoid(25,30,20);
     
     // draw helmet
-    push();
-    specularMaterial(300);
-    shininess(20);
-    ambientMaterial(0,0,0);
+    canvas3D.push();
+    canvas3D.specularMaterial(300);
+    canvas3D.shininess(20);
+    canvas3D.ambientMaterial(0,0,0);
 
-    translate(0,-10,14);
-    ellipsoid(15,10,13);
-    pop();
+    canvas3D.translate(0,-10,14);
+    canvas3D.ellipsoid(15,10,13);
+    canvas3D.pop();
 
     // draw legs
-    push();
-    translate(12,18,0);
-    ellipsoid(8,18,8);
-    translate(-24,0,0);
-    ellipsoid(8,18,8);
-    pop();
+    canvas3D.push();
+    canvas3D.translate(12,18,0);
+    canvas3D.ellipsoid(8,18,8);
+    canvas3D.translate(-24,0,0);
+    canvas3D.ellipsoid(8,18,8);
+    canvas3D.pop();
     // draw oxygen tank
-    push();
-    translate(0,0,-18);
-    box(24,35,8);
-    pop();
+    canvas3D.push();
+    canvas3D.translate(0,0,-18);
+    canvas3D.box(24,35,8);
+    canvas3D.pop();
 
     if (hold === 2) {
       // draw knife
-      push();
-      ambientMaterial(0,120,255);
-      translate(16,8,15);
-      rotateY(-90);
+      canvas3D.push();
+      canvas3D.ambientMaterial(0,120,255);
+      canvas3D.translate(16,8,15);
+      canvas3D.rotateY(-90);
 
-      box(20,6,2);
-      translate(22,0,0);
-      rotateZ(-90);
+      canvas3D.box(20,6,2);
+      canvas3D.translate(22,0,0);
+      canvas3D.rotateZ(-90);
 
-      ambientMaterial(0,120,60);
-      scale(1,1,0.3);
-      cone(8,30,5,0);
-      pop();
+      canvas3D.ambientMaterial(0,120,60);
+      canvas3D.scale(1,1,0.3);
+      canvas3D.cone(8,30,5,0);
+      canvas3D.pop();
     }
   
   }
   else {
     // draw main body
-    push();
-    translate(0,15,0);
-    ellipsoid(20,15,15);
-    scale(1, 1, 0.75);
-    translate(0,-9,0);
-    cylinder(20,16);
-    pop();
-    push();
-    translate(12,18,0);
-    ellipsoid(8,18,8);
-    translate(-24,0,0);
-    ellipsoid(8,18,8);
-    pop();
+    canvas3D.push();
+    canvas3D.translate(0,15,0);
+    canvas3D.ellipsoid(20,15,15);
+    canvas3D.scale(1, 1, 0.75);
+    canvas3D.translate(0,-9,0);
+    canvas3D.cylinder(20,16);
+    canvas3D.pop();
+
+    canvas3D.push();
+    canvas3D.translate(12,18,0);
+    canvas3D.ellipsoid(8,18,8);
+    canvas3D.translate(-24,0,0);
+    canvas3D.ellipsoid(8,18,8);
+    canvas3D.pop();
 
     // draw bone sticking out
-    push();
-    specularMaterial(30000);
-    shininess(100);
-    ambientMaterial(0,0,255);
-    translate(0,-5,0);
-    cylinder(4,20);
+    canvas3D.push();
+    canvas3D.specularMaterial(30000);
+    canvas3D.shininess(100);
+    canvas3D.ambientMaterial(0,0,255);
+    canvas3D.translate(0,-5,0);
+    canvas3D.cylinder(4,20);
 
-    translate(3,-9,0);
-    sphere(5);
-    translate(-6,0,0);
-    sphere(5);
-    pop();
+    canvas3D.translate(3,-9,0);
+    canvas3D.sphere(5);
+    canvas3D.translate(-6,0,0);
+    canvas3D.sphere(5);
+    canvas3D.pop();
 
     // draw oxygen tank
-    push();
-    translate(0,8,-14);
-    box(24,20,10);
-    pop();
+    canvas3D.push();
+    canvas3D.translate(0,8,-14);
+    canvas3D.box(24,20,10);
+    canvas3D.pop();
   }
-  pop();
+  canvas3D.pop();
+  
 }
 
 function updateEnvironment() {
@@ -378,41 +393,42 @@ function updateEnvironment() {
 function drawEnvironment() {
 
   for (let terrainObject of shared.terrain) {
-    push();
+    canvas3D.push();
+
     if (!shared.debugState) {
-      noStroke();
+      canvas3D.noStroke();
     }
 
-    translate(terrainObject.x,terrainObject.y,terrainObject.z);
+    canvas3D.translate(terrainObject.x,terrainObject.y,terrainObject.z);
     if (terrainObject.type === "box") {
-      rotateY(terrainObject.rotation);
-      box(terrainObject.width,terrainObject.height,terrainObject.length);
+      canvas3D.rotateY(terrainObject.rotation);
+      canvas3D.box(terrainObject.width,terrainObject.height,terrainObject.length);
     }
     else if (terrainObject.type === "cylinder") {
-      cylinder(terrainObject.radius,terrainObject.height);
+      canvas3D.cylinder(terrainObject.radius,terrainObject.height);
     }
     else if (terrainObject.type === "polygon") {
 
       let verts = terrainObject.relativeVertices;
 
-      sphere(15);
-      rotateY(-terrainObject.rotation);
+      canvas3D.sphere(15);
+      canvas3D.rotateY(-terrainObject.rotation);
 
-      beginShape();
+      canvas3D.beginShape();
       
-      normal(0,1,0);
+      canvas3D.normal(0,1,0);
       for (let vert of verts) {
-        vertex(vert[0], 0, vert[1]);
+        canvas3D.vertex(vert[0], 0, vert[1]);
       }
-      endShape(CLOSE);
+      canvas3D.endShape(CLOSE);
 
 
-      beginShape();
-      normal(0,-1,0);
+      canvas3D.beginShape();
+      canvas3D.normal(0,-1,0);
       for (let vert of verts) {
-        vertex(vert[0], -terrainObject.height, vert[1]);
+        canvas3D.vertex(vert[0], -terrainObject.height, vert[1]);
       }
-      endShape(CLOSE);
+      canvas3D.endShape(CLOSE);
 
 
       
@@ -420,40 +436,63 @@ function drawEnvironment() {
       for (let i = 0; i < verts.length; i++) {
         let j = (i + 1) % verts.length;
 
-        beginShape();
+        canvas3D.beginShape();
 
         let planeNormal = new p5.Vector(
           verts[j][0] - verts[i][0],
           verts[j][1] - verts[i][1]
         ).rotate(90);
 
-        normal(planeNormal.x, 0, planeNormal.y);
+        canvas3D.normal(planeNormal.x, 0, planeNormal.y);
         
         // normal(-(verts[j][0] - verts[i][0]) / (verts[j][1] - verts[i][1]), 0, 1);
-        vertex(verts[i][0], 0, verts[i][1]);
-        vertex(verts[j][0], 0, verts[j][1]);
-        vertex(verts[j][0], -terrainObject.height, verts[j][1]);
-        vertex(verts[i][0], -terrainObject.height, verts[i][1]);
-        endShape(FILL);
+        canvas3D.vertex(verts[i][0], 0, verts[i][1]);
+        canvas3D.vertex(verts[j][0], 0, verts[j][1]);
+        canvas3D.vertex(verts[j][0], -terrainObject.height, verts[j][1]);
+        canvas3D.vertex(verts[i][0], -terrainObject.height, verts[i][1]);
+        canvas3D.endShape(FILL);
       } 
 
     }
-    pop();
+    canvas3D.pop();
   }
 
   // create axes if in debug mode
   if (shared.debugState) {
-    push();
-    stroke("red"); // x
-    line(-900,0,0,900,0,0);
-    stroke("blue"); // y
-    line(0,-900,0,0,900,0);
-    stroke("yellow"); // z
-    line(0,0,-900,0,0,900);
-    pop();
+    canvas3D.push();
+    canvas3D.stroke("red"); // x
+    canvas3D.line(-900,0,0,900,0,0);
+    canvas3D.stroke("blue"); // y
+    canvas3D.line(0,-900,0,0,900,0);
+    canvas3D.stroke("yellow"); // z
+    canvas3D.line(0,0,-900,0,0,900);
+    canvas3D.pop();
   }
 }
 
+function updateUI() {
+  push();
+  strokeWeight(4);
+  textSize(14);
+  fill("white");
+  stroke("black");
+  translate(width - 350, height - 20);
+
+  for (let i = shared.chat.length - 1; i >= 0; i--) {
+    let messages = shared.chat;
+
+    let lines = round(textWidth(messages[i].content) / 250);
+    console.log(lines);
+    translate(0,-lines * 18 - 6);
+    text(messages[i].content,0, 0, 300);
+    
+  }
+  pop(); 
+}
+
+function drawUI() {
+
+}
 
 // Check if a player is intersecting with the terrain
 function checkCollisions(playerX,playerY,playerZ,terrainObject) {
