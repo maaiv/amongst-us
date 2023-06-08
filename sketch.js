@@ -78,7 +78,7 @@ function preload() {
 function setup() {
   // noLoop();
   createCanvas(windowWidth, windowHeight);
-  canvas3D = createGraphics(windowWidth,windowHeight, WEBGL);
+  canvas3D = createGraphics(windowWidth/1,windowHeight/1, WEBGL);
   angleMode(DEGREES);
 
   canvas3D.colorMode(HSB, 255);
@@ -474,8 +474,8 @@ function updateUI() {
   push();
   strokeWeight(4);
   textSize(14);
-  fill("white");
-  stroke("black");
+  
+  stroke(0, 0, 0);
   translate(width - 350, height - 20);
 
   for (let i = shared.chat.length - 1; i >= 0; i--) {
@@ -484,6 +484,17 @@ function updateUI() {
     let lines = round(textWidth(messages[i].content) / 250);
     console.log(lines);
     translate(0,-lines * 18 - 6);
+
+    if (messages[i].life >= 2) {
+      fill(255);
+      stroke(0);
+    }
+    else {
+      fill(255, messages[i].life * 255/2);
+      stroke(0, messages[i].life * 255/2);
+    }
+    messages[i].life -= 0.05;
+
     text(messages[i].content,0, 0, 300);
     
   }
@@ -872,3 +883,4 @@ class Crewmate {
     }
   }
 }
+
