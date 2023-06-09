@@ -29,6 +29,8 @@ let camYaw = 0; //x
 let camPitch = 0; //y
 let camDistance = 300;
 let lightpos = [];
+let typingMode = false;
+let typingBar = "";
 
 let my, guests, shared, killSFX, cam, collideVisualCanvas, mrGuest, canvas3D;
 
@@ -66,6 +68,7 @@ function preload() {
       {content: "with a corn cob pipe and a button nose", life: 10},
       {content: "and two eyes made out of coal", life: 10},
       {content: "Frosty the snowman was a fairy tale they say he was made of snow but the children know how he came to life one day", life: 10},
+    
       
     ]
   });
@@ -470,19 +473,73 @@ function drawEnvironment() {
   }
 }
 
+function keyTyped() {
+  console.log(key)
+  if (key === "Enter") {
+    if (typingMode && typingBar.length > 0) {
+      shared.chat.push({content: typingBar, life: 10});
+    }
+    typingBar = "";
+    typingMode = !typingMode;
+
+  }
+  else if (typingMode) {
+    typingBar = typingBar.concat(key);
+  }
+  
+}
+
+// Toggle debug mode
+function keyPressed() {
+  if (keyCode === 80) {
+    shared.debugState = !shared.debugState;
+  } 
+
+  if (typingMode) {
+    if (keyCode === BACKSPACE && typingBar.length > 0) {
+      console.log('asdkjlklasjd')
+      typingBar = typingBar.slice(0,typingBar.length - 1);
+    }
+  }
+  
+
+}
+
 function updateUI() {
+
+  // display text
   push();
   strokeWeight(4);
   textSize(14);
-  
   stroke(0, 0, 0);
-  translate(width - 350, height - 20);
+  translate(width - 350, height - 50);
+
+  if (typingMode) {
+    push();
+    strokeWeight(2);
+    fill(155, 155);
+    stroke(0,155);
+    rect(-10,-9,310,32);
+
+    strokeWeight(4);
+    fill(255, 205);
+    stroke(0, 205);
+    text(typingBar,0, 0, 300);
+
+    fill(255);
+    stroke(0);
+
+
+    pop();
+  }
+
+
 
   for (let i = shared.chat.length - 1; i >= 0; i--) {
     let messages = shared.chat;
 
-    let lines = round(textWidth(messages[i].content) / 250);
-    console.log(lines);
+    let lines = ceil(textWidth(messages[i].content) / 270);
+
     translate(0,-lines * 18 - 6);
 
     if (messages[i].life >= 2) {
@@ -677,19 +734,15 @@ function die(data) {
   }
 }
 
-// Toggle debug mode
-function keyPressed() {
-  if (keyCode === 80) {
-    shared.debugState = !shared.debugState;
-  } 
-}
-
 function angleShift(x, y, dt) {
   let theta = atan2(y,x) + dt;
   let localMag = Math.sqrt(x * x + y * y);
   return {x:cos(theta) * localMag, y:sin(theta) * localMag};
-
 }
+
+
+
+
 
 // Crewmate class for holding data and taking user input
 class Crewmate {
