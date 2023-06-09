@@ -70,7 +70,7 @@ function preload() {
     playerJumpPower: 5,
     worldGravity: 0.15,
     playerPerspective: 3,
-
+    gameState: "lobby"
   });
 
   killSFX = loadSound("assets/killSFX.mp3");
@@ -475,19 +475,28 @@ function drawEnvironment() {
 }
 
 function keyTyped() {
-
+  // console.log(key);
   if (key === "Enter") {
     if (typingMode && typingBar.length > 0) {
       partyEmit("newChatMessage", {content: typingBar, life: 10});
     }
     typingBar = "";
     typingMode = !typingMode;
-
+  }
+  else if (key === "Delete") {
+    console.log(typingBar.charAt(typingBar.length-1));
+    while (typingBar.charAt(typingBar.length - 1) !== " " && typingBar.length > 0){
+      typingBar = typingBar.slice(0,typingBar.length - 1);
+    }
+    if (typingBar.charAt(typingBar.length - 1) === " ") {
+      typingBar = typingBar.slice(0,typingBar.length - 1);
+    }
   }
   else if (typingMode) {
     typingBar = typingBar.concat(key);
   }
   
+
 }
 
 // Toggle debug mode
@@ -497,7 +506,7 @@ function keyPressed() {
   } 
 
   if (typingMode) {
-    if (keyCode === BACKSPACE && typingBar.length > 0) {
+    if (keyCode === BACKSPACE && typingBar.length > 0 && !keyIsDown(17)) {
       typingBar = typingBar.slice(0,typingBar.length - 1);
     }
   }
@@ -511,7 +520,7 @@ function updateUI() {
 
   // display text
   push();
-  strokeWeight(4);
+  strokeWeight(3);
   textSize(14);
   stroke(0, 0, 0);
   translate(width - 350, height - 50);
@@ -523,34 +532,44 @@ function updateUI() {
     stroke(0,155);
     rect(-10,-9,310,32);
 
-    strokeWeight(4);
-    fill(255, 205);
-    stroke(0, 205);
-    text(typingBar,0, 0, 300);
+    strokeWeight(3);
+
+
+    if (typingBar.length > 0) {
+      fill(255, 205);
+      stroke(0, 205);
+      text(typingBar,0, 0, 300);
+    }
+    else {
+      fill(255, 135);
+      stroke(0, 135);
+      text("type here", 0, 0, 300);
+    }
+
+    
 
     fill(255);
     stroke(0);
     pop();
   }
 
-
-
   for (let i = chat.length - 1; i >= 0; i--) {
-
-
     let lines = ceil(textWidth(chat[i].content) / 270);
-
     translate(0,-lines * 18 - 6);
 
-    if (chat[i].life >= 2) {
+    if (chat[i].life >= 2 || typingMode) {
       fill(255);
       stroke(0);
-    }
+    } 
     else {
       fill(255, chat[i].life * 255/2);
       stroke(0, chat[i].life * 255/2);
     }
-    chat[i].life -= 0.05;
+
+    if (chat[i].life >= 0) {
+      chat[i].life -= 0.03;
+    }
+    
 
     text(chat[i].content,0, 0, 300);
     
@@ -758,6 +777,7 @@ class Crewmate {
     this.hold = 1;
     this.alive = true;
     this.id = noise(random(1,10));
+    this.type === "crewmate";
 
   }
 
@@ -766,29 +786,31 @@ class Crewmate {
     if (this.alive) {
 
       // select item
-      if (keyIsDown(49)) {
-        this.hold = 0;
-      }
-      else if (keyIsDown(50)) {
-        this.hold = 1;
-      }
-      else if (keyIsDown(51)) {
-        this.hold = 2;
-      }
+      if (!typingMode) {
+        if (keyIsDown(49)) {
+          this.hold = 0;
+        }
+        else if (keyIsDown(50)) {
+          this.hold = 1;
+        }
+        else if (keyIsDown(51) && this.type === "impostor") {
+          this.hold = 2;
+        } 
 
-      // use knife
-      if (this.hold === 2) {
-        for (let guest of guests) {
-          if (guest.player !== my.player && mouseIsPressed && !killSFX.isPlaying()) {
-            if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
-              killSFX.play();
-              let tempDir = atan2(my.player.x - guest.player.x, my.player.z - guest.player.z);
-              partyEmit("die", {
-                id: guest.player.id,
-                dx: sin(tempDir) * -5,
-                dy: -4,
-                dz: cos(tempDir) * -5
-              });
+        // use knife
+        if (this.hold === 2) {
+          for (let guest of guests) {
+            if (guest.player !== my.player && mouseIsPressed && !killSFX.isPlaying()) {
+              if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
+                killSFX.play();
+                let tempDir = atan2(my.player.x - guest.player.x, my.player.z - guest.player.z);
+                partyEmit("die", {
+                  id: guest.player.id,
+                  dx: sin(tempDir) * -5,
+                  dy: -4,
+                  dz: cos(tempDir) * -5
+                });
+              }
             }
           }
         }
@@ -851,7 +873,7 @@ class Crewmate {
       }
 
       // detect keyboard input
-      if (keyIsDown(83) + keyIsDown(87) === 1 || keyIsDown(65) + keyIsDown(68) === 1) {
+      if ((keyIsDown(83) + keyIsDown(87) === 1 || keyIsDown(65) + keyIsDown(68) === 1) && !typingMode) {
 
         // perform math stuff to condense movement controls into a "single line" (this was a terrible idea)
         let magnitude = !keyIsDown(83) * 2 - 1;

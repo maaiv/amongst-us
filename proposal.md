@@ -8,7 +8,7 @@ For my final sds project, I will be attempting to remake the game, Among Us, but
 - Player interactivity (imposter killing crewmates, crewmates reporting bodies)
 - Game phases (lobby, gamephase, discussion, win/lose)
 - Dynamic User Interface
-- The Skeld remake
+- Working map
 
 ## Nice to have list
 - Menu with adjustable settings
