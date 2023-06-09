@@ -32,6 +32,7 @@ let lightpos = [];
 let typingMode = false;
 let typingBar = "";
 
+
 let my, guests, shared, killSFX, cam, collideVisualCanvas, mrGuest, canvas3D;
 
 
@@ -44,10 +45,17 @@ let hostTerrain = [
   // {type: "polygon", x: -400, y: 20, z: 0, relativeVertices: [[0,0],[0,200],[100,100],[100,0],[-300,-100]], height: 100, rotation: -10}
 ];
 
+let chat = [
+  {content: "Frosty the snowman was a fairy tale they say he was made of snow but the children know how he came to life one day", life: 10},
+  {content: "Frosty the snowman was a jolly happy soul", life: 10}, 
+  {content: "with a corn cob pipe and a button nose", life: 10},
+  {content: "and two eyes made out of coal", life: 10},
+  {content: "Frosty the snowman was a fairy tale they say he was made of snow but the children know how he came to life one day", life: 10},
+];
 
 // Connect to the server and shared data, and load sounds
 function preload() {
-  partyConnect("wss://demoserver.p5party.org", "among");
+  partyConnect("wss://demoserver.p5party.org", "amongus");
   mrGuest = loadImage("photo.jpg");
   my = partyLoadMyShared();
   guests = partyLoadGuestShareds();
@@ -62,19 +70,12 @@ function preload() {
     playerJumpPower: 5,
     worldGravity: 0.15,
     playerPerspective: 3,
-    chat: [
-      {content: "Frosty the snowman was a fairy tale they say he was made of snow but the children know how he came to life one day", life: 10},
-      {content: "Frosty the snowman was a jolly happy soul", life: 10}, 
-      {content: "with a corn cob pipe and a button nose", life: 10},
-      {content: "and two eyes made out of coal", life: 10},
-      {content: "Frosty the snowman was a fairy tale they say he was made of snow but the children know how he came to life one day", life: 10},
-    
-      
-    ]
+
   });
 
   killSFX = loadSound("assets/killSFX.mp3");
   partySubscribe("die", die);
+  partySubscribe("newChatMessage", newChatMessage);
 }
 
 // Set sketch modes, canvas, and subscribe to die message
@@ -474,10 +475,10 @@ function drawEnvironment() {
 }
 
 function keyTyped() {
-  console.log(key)
+
   if (key === "Enter") {
     if (typingMode && typingBar.length > 0) {
-      shared.chat.push({content: typingBar, life: 10});
+      partyEmit("newChatMessage", {content: typingBar, life: 10});
     }
     typingBar = "";
     typingMode = !typingMode;
@@ -497,12 +498,13 @@ function keyPressed() {
 
   if (typingMode) {
     if (keyCode === BACKSPACE && typingBar.length > 0) {
-      console.log('asdkjlklasjd')
       typingBar = typingBar.slice(0,typingBar.length - 1);
     }
   }
-  
+}
 
+function newChatMessage(data) {
+  chat.push(data);
 }
 
 function updateUI() {
@@ -517,7 +519,7 @@ function updateUI() {
   if (typingMode) {
     push();
     strokeWeight(2);
-    fill(155, 155);
+    fill(0, 55);
     stroke(0,155);
     rect(-10,-9,310,32);
 
@@ -528,31 +530,29 @@ function updateUI() {
 
     fill(255);
     stroke(0);
-
-
     pop();
   }
 
 
 
-  for (let i = shared.chat.length - 1; i >= 0; i--) {
-    let messages = shared.chat;
+  for (let i = chat.length - 1; i >= 0; i--) {
 
-    let lines = ceil(textWidth(messages[i].content) / 270);
+
+    let lines = ceil(textWidth(chat[i].content) / 270);
 
     translate(0,-lines * 18 - 6);
 
-    if (messages[i].life >= 2) {
+    if (chat[i].life >= 2) {
       fill(255);
       stroke(0);
     }
     else {
-      fill(255, messages[i].life * 255/2);
-      stroke(0, messages[i].life * 255/2);
+      fill(255, chat[i].life * 255/2);
+      stroke(0, chat[i].life * 255/2);
     }
-    messages[i].life -= 0.05;
+    chat[i].life -= 0.05;
 
-    text(messages[i].content,0, 0, 300);
+    text(chat[i].content,0, 0, 300);
     
   }
   pop(); 
