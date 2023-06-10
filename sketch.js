@@ -485,12 +485,14 @@ function keyTyped() {
   }
   else if (key === "Delete") {
     console.log(typingBar.charAt(typingBar.length-1));
-    while (typingBar.charAt(typingBar.length - 1) !== " " && typingBar.length > 0){
-      typingBar = typingBar.slice(0,typingBar.length - 1);
-    }
     if (typingBar.charAt(typingBar.length - 1) === " ") {
       typingBar = typingBar.slice(0,typingBar.length - 1);
     }
+
+    while (typingBar.charAt(typingBar.length - 1) !== " " && typingBar.length > 0){
+      typingBar = typingBar.slice(0,typingBar.length - 1);
+    }
+
   }
   else if (typingMode) {
     typingBar = typingBar.concat(key);
@@ -777,7 +779,7 @@ class Crewmate {
     this.hold = 1;
     this.alive = true;
     this.id = noise(random(1,10));
-    this.type === "impostor";
+    this.type = "impostor";
 
   }
 
