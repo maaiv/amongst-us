@@ -777,7 +777,7 @@ class Crewmate {
     this.hold = 1;
     this.alive = true;
     this.id = noise(random(1,10));
-    this.type === "crewmate";
+    this.type === "impostor";
 
   }
 
