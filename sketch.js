@@ -31,10 +31,20 @@ let camDistance = 300;
 let lightpos = [];
 let typingMode = false;
 let typingBar = "";
+let localGameState = "menu";
 
 
-let my, guests, shared, killSFX, cam, collideVisualCanvas, mrGuest, canvas3D;
 
+let my, guests, shared, killSFX, cam, collideVisualCanvas, canvas3D, menuButtons;
+
+
+let lobbyTerrain = [
+  {type: "box", x: 0, y: 50, z: 0, width: 1500, height: 50, length: 1500, rotation: 0},
+  {type: "box", x: 750, y: -300, z: 0, width: 50, height: 750, length: 1500, rotation: 0},
+  {type: "box", x: -750, y: -300, z: 0, width: 50, height: 750, length: 1500, rotation: 0},
+  {type: "box", x: 0, y: -300, z: 750, width: 1550, height: 750, length: 50, rotation: 0},
+  {type: "box", x: 0, y: -300, z: -750, width: 1550, height: 750, length: 50, rotation: 0},
+];
 
 // Create environment objects
 let hostTerrain = [
@@ -46,7 +56,6 @@ let hostTerrain = [
 ];
 
 let chat = [
-  {content: "Frosty the snowman was a fairy tale they say he was made of snow but the children know how he came to life one day", life: 10},
   {content: "Frosty the snowman was a jolly happy soul", life: 10}, 
   {content: "with a corn cob pipe and a button nose", life: 10},
   {content: "and two eyes made out of coal", life: 10},
@@ -55,93 +64,120 @@ let chat = [
 
 // Connect to the server and shared data, and load sounds
 function preload() {
-  partyConnect("wss://demoserver.p5party.org", "amongus");
-  mrGuest = loadImage("photo.jpg");
-  my = partyLoadMyShared();
+  killSFX = loadSound("assets/killSFX.mp3");
+
+}
+
+function connectToParty(roomID) {
+  partyConnect("wss://demoserver.p5party.org", "amogus", roomID);
+
+  my = partyLoadMyShared({}, () => {
+    my.player = new Crewmate(0,0,0,0,0);
+    
+  });
   guests = partyLoadGuestShareds();
-  shared = partyLoadShared("shared", {
-    ambientLevel: 100, 
+
+  partySubscribe("die", die);
+  partySubscribe("newChatMessage", newChatMessage);
+  shared = partyLoadShared("shared", {  
+    ambientLevel: 50, 
     debugState: false, 
-    terrain: hostTerrain, 
-    lightSize: 10,
+    terrain: lobbyTerrain, 
+    lightSize: 15,
     playerAcceleration: 1,
     playerDeceleration: 0.9,
     playerMaxVelocity: 6,
     playerJumpPower: 5,
     worldGravity: 0.15,
     playerPerspective: 3,
-    gameState: "lobby"
-  });
+    serverGameState: "lobby"
+  }, () => {
 
-  killSFX = loadSound("assets/killSFX.mp3");
-  partySubscribe("die", die);
-  partySubscribe("newChatMessage", newChatMessage);
+
+    rectMode(CORNER);
+    textAlign(LEFT);
+
+    // log shared data
+    console.log("me", JSON.stringify(my));
+    console.log("guests", JSON.stringify(guests));
+    console.log("am i host?", partyIsHost());
+    localGameState = "play";
+  });
+  
+  
+
+  
 }
 
 // Set sketch modes, canvas, and subscribe to die message
 function setup() {
-  // noLoop();
   createCanvas(windowWidth, windowHeight);
-  canvas3D = createGraphics(windowWidth/1,windowHeight/1, WEBGL);
   angleMode(DEGREES);
+  rectMode(CENTER);
+  textAlign(CENTER);
+  
+  // instantiate player object, hitbox visual, and 3d canvas
+  
 
+  collideVisualCanvas = createGraphics(180,180);
+  collideVisualCanvas.angleMode(DEGREES);
+  
+  canvas3D = createGraphics(windowWidth/1,windowHeight/1, WEBGL);
   canvas3D.colorMode(HSB, 255);
+  canvas3D.angleMode(DEGREES);
   
   cam = canvas3D.createCamera();
 
-  // instantiate player object and hitbox visual
-  my.player = new Crewmate(0,0,0,0,0);
-  
-  collideVisualCanvas = createGraphics(180,180);
-  collideVisualCanvas.angleMode(DEGREES);
 
-  canvas3D.angleMode(DEGREES);
-
-
-  // log shared data
-  console.log("me", JSON.stringify(my));
-  console.log("guests", JSON.stringify(guests));
-  console.log("am i host?", partyIsHost());
-  // noLoop();
+  menuButtons = {"menu": [new Button(width/2, height/2, 200, 50, "bello", 50, "play")]};
 
 } 
 
 // Game update loop
 function draw() {
+  if (localGameState === "menu") {
+    menuLoop();
+  }
+  else if (localGameState === "play") {
+    gameLoop();
+  }
+}
 
+function menuLoop() {
+  background(255);
+  for (let button of menuButtons[localGameState]) {
+    button.update();
+    button.draw();
+  }
+}
+
+function gameLoop() {
   drawInit();
-
   collideVisual();
-  
   updateMyPlayer();
-
   updateCam();
-
   createLights();
-
   drawPlayers();
-
   updateEnvironment();
-  
   drawEnvironment();
-  // background(255);
+
+  background(255);
   image(canvas3D,0,0,width,height);
-
   updateUI();
-
 }
 
 // Set background and lock pointer light
 function drawInit() {
   canvas3D.reset();
-  canvas3D.background(0);
+  canvas3D.background(shared.ambientLevel);
   
   // create a global light so WEBGL doesn't just break when there are no lights
   canvas3D.pointLight(
     0,0,shared.ambientLevel,
-    0,-1900,0
+    my.player.x,my.player.y - 200,my.player.z
   );
-  canvas3D.ambientLight(shared.ambientLevel/2);
+
+  canvas3D.ambientLight(0, 0, shared.ambientLevel);
 
   if (mouseIsPressed) {
     requestPointerLock();
@@ -399,8 +435,13 @@ function drawEnvironment() {
   for (let terrainObject of shared.terrain) {
     canvas3D.push();
 
+    canvas3D.ambientMaterial(0,0,shared.ambientLevel);
+
     if (!shared.debugState) {
       canvas3D.noStroke();
+    }
+    else {
+      canvas3D.normalMaterial();
     }
 
     canvas3D.translate(terrainObject.x,terrainObject.y,terrainObject.z);
@@ -475,7 +516,7 @@ function drawEnvironment() {
 }
 
 function keyTyped() {
-  // console.log(key);
+
   if (key === "Enter") {
     if (typingMode && typingBar.length > 0) {
       partyEmit("newChatMessage", {content: typingBar, life: 10});
@@ -484,7 +525,6 @@ function keyTyped() {
     typingMode = !typingMode;
   }
   else if (key === "Delete") {
-    console.log(typingBar.charAt(typingBar.length-1));
     if (typingBar.charAt(typingBar.length - 1) === " ") {
       typingBar = typingBar.slice(0,typingBar.length - 1);
     }
@@ -762,8 +802,45 @@ function angleShift(x, y, dt) {
 }
 
 
+// Buttonclass for the menu
+class Button {
+  constructor(x, y, width, height, content, colour, destination) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.content = content;
+    this.colour = colour;
+    this.destination = destination;
+  }
+  update() {
+    let mouseOver = mouseX >= this.x - this.width/2 && mouseX <= this.x + this.width/2 && mouseY >= this.y - this.height/2 && mouseY <= this.y + this.height/2;
+    if (mouseOver) {
+      if (mouseButton === LEFT && mouseIsPressed) {
+        
+        if (this.destination === "play") {
+          connectToParty("room1");
+          localGameState = "";
+        }
+        else {
+          localGameState = this.destination;
+        }
+        
+      }
 
-
+    }
+  }
+  draw() {
+    push();
+    fill(150);
+    rect(this.x, this.y, this.width, this.height);
+    
+    fill(0);
+    textSize(34);
+    text("Frosty", this.x, this.y + this.height/5);
+    pop();
+  }
+}
 
 // Crewmate class for holding data and taking user input
 class Crewmate {
@@ -802,7 +879,7 @@ class Crewmate {
         // use knife
         if (this.hold === 2) {
           for (let guest of guests) {
-            if (guest.player !== my.player && mouseIsPressed && !killSFX.isPlaying()) {
+            if (guest.player !== my.player && mouseIsPressed && mouseButton === LEFT && !killSFX.isPlaying()) {
               if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
                 killSFX.play();
                 let tempDir = atan2(my.player.x - guest.player.x, my.player.z - guest.player.z);
@@ -854,7 +931,7 @@ class Crewmate {
               this.y -= 0.1;
             }
             this.dy = 0;
-            if (keyIsDown(32)) {
+            if (keyIsDown(32) && !typingMode) {
               this.dy = -shared.playerJumpPower;
             }
             
@@ -907,7 +984,7 @@ class Crewmate {
       }
       
       // change world ambient level
-      shared.ambientLevel += keyIsDown(UP_ARROW) - keyIsDown(DOWN_ARROW);
+      shared.ambientLevel += (keyIsDown(UP_ARROW) - keyIsDown(DOWN_ARROW))/1.5;
     }
 
     // player state if not alive
