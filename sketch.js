@@ -35,7 +35,7 @@ let localGameState = "menu";
 
 
 
-let my, guests, shared, killSFX, cam, collideVisualCanvas, canvas3D, menuButtons;
+let my, guests, shared, killSFX, cam, collideVisualCanvas, canvas3D, menuButtons, startSec;
 
 
 let lobbyTerrain = [
@@ -71,10 +71,7 @@ function preload() {
 function connectToParty(roomID) {
   partyConnect("wss://demoserver.p5party.org", "amogus", roomID);
 
-  my = partyLoadMyShared({}, () => {
-    my.player = new Crewmate(0,0,0,0,0);
-    
-  });
+
   guests = partyLoadGuestShareds();
 
   partySubscribe("die", die);
@@ -83,29 +80,30 @@ function connectToParty(roomID) {
     ambientLevel: 50, 
     debugState: false, 
     terrain: lobbyTerrain, 
-    lightSize: 15,
+    lightSize: 20,
     playerAcceleration: 1,
-    playerDeceleration: 0.9,
+    playerDeceleration: 0.1,
     playerMaxVelocity: 6,
     playerJumpPower: 5,
     worldGravity: 0.15,
     playerPerspective: 3,
-    serverGameState: "lobby"
+    serverGameState: "lobby",
+    lobbyTimer: -1
   }, () => {
+    my = partyLoadMyShared({}, () => {
+      my.player = new Crewmate(0,0,0,0,0);
+      rectMode(CORNER);
+      textAlign(LEFT);
+  
+      // log shared data
+      console.log("me", JSON.stringify(my));
+      console.log("guests", JSON.stringify(guests));
+      console.log("am i host?", partyIsHost());
+  
+      localGameState = "play";
+    });
 
-
-    rectMode(CORNER);
-    textAlign(LEFT);
-
-    // log shared data
-    console.log("me", JSON.stringify(my));
-    console.log("guests", JSON.stringify(guests));
-    console.log("am i host?", partyIsHost());
-    localGameState = "play";
   });
-  
-  
-
   
 }
 
@@ -115,6 +113,7 @@ function setup() {
   angleMode(DEGREES);
   rectMode(CENTER);
   textAlign(CENTER);
+  colorMode(HSB, 255);
   
   // instantiate player object, hitbox visual, and 3d canvas
   
@@ -140,6 +139,41 @@ function draw() {
   }
   else if (localGameState === "play") {
     gameLoop();
+    if (shared.serverGameState === "lobby") {
+      if (partyIsHost()) {
+        if (guests.length >= 2) {
+          if (shared.lobbyTimer === -1) {
+            shared.lobbyTimer = 3;
+            startSec = millis()/1000;
+          }
+          else if (shared.lobbyTimer === 0) {
+            shared.serverGameState = "play";
+            partyEmit("newChatMessage", {content: "Starting game!", life: 10, colour:[60, 205]});
+            shared.terrain = hostTerrain;
+            for (let guest of guests) {
+              guest.player.x = random(-300, 300);
+              guest.player.y = -50;
+              guest.player.z = random(-300, 300);
+              guest.player.dx = 0;
+              guest.player.dy = 0;
+              guest.player.dz = 0;
+              guest.player.alive = true;
+            }
+          }
+          else if (millis()/1000 >= startSec + 1) {
+            shared.lobbyTimer -= round(millis()/1000 - startSec);
+            startSec = millis()/1000;
+            partyEmit("newChatMessage", {content: shared.lobbyTimer, life: 10, colour:[40, 205]});
+          }
+        }
+        else if (shared.lobbyTimer !== -1) {
+          shared.lobbyTimer = -1;
+          partyEmit("newChatMessage", {content: "Start game failed! Not enough players.", life: 10, colour:[5, 205]});
+        }
+      }
+    }
+
+
   }
 }
 
@@ -164,6 +198,10 @@ function gameLoop() {
   background(255);
   image(canvas3D,0,0,width,height);
   updateUI();
+}
+
+function beginTimer() {
+  
 }
 
 // Set background and lock pointer light
@@ -275,9 +313,6 @@ function updateCam() {
     cam.lookAt(my.player.x,my.player.y - 60,my.player.z);
   }
 }
-
-
-
 
 // Create and store xy coordinate of each player light
 function createLights() {
@@ -562,7 +597,7 @@ function updateUI() {
 
   // display text
   push();
-  strokeWeight(3);
+  strokeWeight(2.5);
   textSize(14);
   stroke(0, 0, 0);
   translate(width - 350, height - 50);
@@ -597,14 +632,26 @@ function updateUI() {
 
   for (let i = chat.length - 1; i >= 0; i--) {
     let lines = ceil(textWidth(chat[i].content) / 270);
+    let chatHue, chatSaturation;
+    if (chat[i].colour === undefined) {
+      chatHue = 0;
+      chatSaturation = 0;
+    }
+    else {
+      chatHue = chat[i].colour[0];
+      chatSaturation = chat[i].colour[1];
+    }
+
+
     translate(0,-lines * 18 - 6);
 
     if (chat[i].life >= 2 || typingMode) {
-      fill(255);
+      
+      fill(chatHue, chatSaturation, 255);
       stroke(0);
     } 
     else {
-      fill(255, chat[i].life * 255/2);
+      fill(chatHue, chatSaturation, 255, chat[i].life * 255/2);
       stroke(0, chat[i].life * 255/2);
     }
 
@@ -857,13 +904,11 @@ class Crewmate {
     this.alive = true;
     this.id = noise(random(1,10));
     this.type = "impostor";
-
   }
 
   update() {
     // player state if alive
     if (this.alive) {
-
       // select item
       if (!typingMode) {
         if (keyIsDown(49)) {
@@ -876,23 +921,35 @@ class Crewmate {
           this.hold = 2;
         } 
 
-        // use knife
-        if (this.hold === 2) {
-          for (let guest of guests) {
+        // check for other players
+
+        for (let guest of guests) {
+          // use knife
+          if (this.hold === 2) {
             if (guest.player !== my.player && mouseIsPressed && mouseButton === LEFT && !killSFX.isPlaying()) {
               if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
                 killSFX.play();
                 let tempDir = atan2(my.player.x - guest.player.x, my.player.z - guest.player.z);
                 partyEmit("die", {
                   id: guest.player.id,
-                  dx: sin(tempDir) * -5,
-                  dy: -4,
-                  dz: cos(tempDir) * -5
+                  dx: sin(tempDir) * -7,
+                  dy: -5,
+                  dz: cos(tempDir) * -7
                 });
               }
             }
           }
+
+          // report body
+
+          else if (guest.player !== my.player && mouseIsPressed && mouseButton === LEFT && !guest.player.alive) {
+            if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
+              console.log("BEEEEP");
+            }
+          }
+
         }
+
       }
 
       // apply x velocity and check collisions
@@ -979,12 +1036,11 @@ class Crewmate {
       }
       else {
         // decelerate player
-        this.dx = this.dx * shared.playerDeceleration;
-        this.dz = this.dz * shared.playerDeceleration;
+        this.dx = this.dx * (1 - shared.playerDeceleration);
+        this.dz = this.dz * (1 - shared.playerDeceleration);
       }
       
-      // change world ambient level
-      shared.ambientLevel += (keyIsDown(UP_ARROW) - keyIsDown(DOWN_ARROW))/1.5;
+
     }
 
     // player state if not alive
@@ -1024,8 +1080,12 @@ class Crewmate {
               this.y += 0.1;
             }
           }
-
-          this.dy = -this.dy;
+          if (Math.abs(this.dy) > 0.01) {
+            this.dy = -this.dy/2;
+          }
+          else {
+            this.dy = 0;
+          }
           touchingGround = true;
         }
       }
@@ -1034,7 +1094,19 @@ class Crewmate {
       if (!touchingGround) {
         this.dy += shared.worldGravity;
       }
+
+      if (Math.abs(this.dx) + Math.abs(this.dy) > 0.01) {
+        this.dx = this.dx * (1 - shared.playerDeceleration/5);
+        this.dz = this.dz * (1 - shared.playerDeceleration/5);
+      }
+      else {
+        this.dx = 0;
+        this.dz = 0;
+      }
     }
+    // change world ambient level
+    shared.ambientLevel += (keyIsDown(UP_ARROW) - keyIsDown(DOWN_ARROW))/1.5;
   }
+
 }
 
