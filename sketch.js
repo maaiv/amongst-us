@@ -76,6 +76,7 @@ function connectToParty(roomID) {
 
   partySubscribe("die", die);
   partySubscribe("newChatMessage", newChatMessage);
+  partySubscribe("gameStateChange", gameStateChange);
   shared = partyLoadShared("shared", {  
     ambientLevel: 50, 
     debugState: false, 
@@ -139,41 +140,13 @@ function draw() {
   }
   else if (localGameState === "play") {
     gameLoop();
+
     if (shared.serverGameState === "lobby") {
-      if (partyIsHost()) {
-        if (guests.length >= 1) {
-          if (shared.lobbyTimer === -1) {
-            shared.lobbyTimer = 10;
-            startSec = millis()/1000;
-          }
-          else if (shared.lobbyTimer === 0) {
-            shared.serverGameState = "play";
-            partyEmit("newChatMessage", {content: "Starting game!", life: 10, colour:[60, 205]});
-            shared.terrain = hostTerrain;
-            for (let guest of guests) {
-              guest.player.x = random(-300, 300);
-              guest.player.y = -50;
-              guest.player.z = random(-300, 300);
-              guest.player.dx = 0;
-              guest.player.dy = 0;
-              guest.player.dz = 0;
-              guest.player.alive = true;
-            }
-          }
-          else if (millis()/1000 >= startSec + 1) {
-            shared.lobbyTimer -= round(millis()/1000 - startSec);
-            startSec = millis()/1000;
-            partyEmit("newChatMessage", {content: shared.lobbyTimer, life: 10, colour:[40, 205]});
-          }
-        }
-        else if (shared.lobbyTimer !== -1) {
-          shared.lobbyTimer = -1;
-          partyEmit("newChatMessage", {content: "Start game failed! Not enough players.", life: 10, colour:[5, 205]});
-        }
-      }
+      lobbyLoop();
     }
-
-
+    else if (shared.serverGameState === "vote") {
+      voteLoop();
+    }
   }
 }
 
@@ -183,6 +156,44 @@ function menuLoop() {
     button.update();
     button.draw();
   }
+
+  
+  // display text
+  push();
+  strokeWeight(2.5);
+  textSize(14);
+  stroke(0, 0, 0);
+  translate(width/2, height/3);
+
+
+  push();
+  strokeWeight(2);
+  fill(0, 55);
+  stroke(0,155);
+  rect(0,5,310,32);
+
+  strokeWeight(3);
+
+  if (typingBar.length > 0) {
+    fill(255, 205);
+    stroke(0, 205);
+    text(typingBar, 0, 0, 300);
+  }
+  else {
+    fill(255, 135);
+    stroke(0, 135);
+    text("Enter Username", 0, 0, 300);
+  }
+
+  
+
+  fill(255);
+  stroke(0);
+  pop();
+
+  pop();
+
+
 }
 
 function gameLoop() {
@@ -198,6 +209,54 @@ function gameLoop() {
   background(255);
   image(canvas3D,0,0,width,height);
   updateUI();
+}
+
+function lobbyLoop() {
+  if (partyIsHost()) {
+    if (guests.length >= 1) {
+      if (shared.lobbyTimer === -1) {
+        shared.lobbyTimer = 3;
+        startSec = millis()/1000;
+      }
+      else if (shared.lobbyTimer === 0) {
+        partyEmit("gameStateChange", "play");
+        partyEmit("newChatMessage", {content: "Starting game!", life: 10, colour:[60, 205]});
+        
+      }
+      else if (millis()/1000 >= startSec + 1) {
+        shared.lobbyTimer -= round(millis()/1000 - startSec);
+        startSec = millis()/1000;
+        partyEmit("newChatMessage", {content: shared.lobbyTimer, life: 10, colour:[40, 205]});
+      }
+    }
+    else if (shared.lobbyTimer !== -1) {
+      shared.lobbyTimer = -1;
+      partyEmit("newChatMessage", {content: "Start game failed! Not enough players.", life: 10, colour:[5, 205]});
+    }
+  }
+}
+
+function voteLoop() {
+
+}
+
+function gameStateChange(data) {
+  if (data === "play") {
+    if (partyIsHost()) {
+      shared.serverGameState = "play";
+      shared.terrain = hostTerrain;
+    }
+    my.player.reset();
+  }
+  else if (data === "vote") {
+    if (partyIsHost()) {
+      shared.serverGameState = "vote";
+      shared.terrain = lobbyTerrain;
+      partyEmit("newChatMessage", {content: "Voting has begun. Use /vote [player_name] to vote for them to be ejected!", life: 10, colour:[40, 205]});
+      
+    }
+    my.player.reset();
+  }
 }
 
 function beginTimer() {
@@ -338,7 +397,7 @@ function drawPlayers() {
       canvas3D.push();
       // calculate ambient lighting depending on the closest distance to another light before rendering
       let minimumDistance = min(lightpos.map(v => dist(guest.player.x,guest.player.z,v[0], v[1])));
-      canvas3D.ambientLight(map(minimumDistance,0,125 + 50*shared.lightSize,105,5,true));
+      canvas3D.ambientLight(map(minimumDistance,0,125 + 50 * shared.lightSize,105,0,true));
       drawCrewMateModel(guest.player.x,guest.player.y,guest.player.z,guest.player.dir,guest.player.h,guest.player.hold,guest.player.alive);
       canvas3D.pop();
     }
@@ -552,27 +611,42 @@ function drawEnvironment() {
 
 function keyTyped() {
 
-  if (key === "Enter") {
-    if (typingMode && typingBar.length > 0) {
-      partyEmit("newChatMessage", {content: typingBar, life: 10});
+  if (localGameState === "menu") {
+    if (key === "Delete") {
+      if (typingBar.charAt(typingBar.length - 1) === " ") {
+        typingBar = typingBar.slice(0,typingBar.length - 1);
+      }
+      while (typingBar.charAt(typingBar.length - 1) !== " " && typingBar.length > 0){
+        typingBar = typingBar.slice(0,typingBar.length - 1);
+      }
     }
-    typingBar = "";
-    typingMode = !typingMode;
+    else {
+      typingBar = typingBar.concat(key);
+    }
   }
-  else if (key === "Delete") {
-    if (typingBar.charAt(typingBar.length - 1) === " ") {
-      typingBar = typingBar.slice(0,typingBar.length - 1);
+  else {
+    if (key === "Enter") {
+      if (typingMode && typingBar.length > 0) {
+        partyEmit("newChatMessage", {content: typingBar, life: 10});
+      }
+      typingBar = "";
+      typingMode = !typingMode;
     }
+    else if (key === "Delete") {
+      if (typingBar.charAt(typingBar.length - 1) === " ") {
+        typingBar = typingBar.slice(0,typingBar.length - 1);
+      }
 
-    while (typingBar.charAt(typingBar.length - 1) !== " " && typingBar.length > 0){
-      typingBar = typingBar.slice(0,typingBar.length - 1);
-    }
+      while (typingBar.charAt(typingBar.length - 1) !== " " && typingBar.length > 0){
+        typingBar = typingBar.slice(0,typingBar.length - 1);
+      }
 
+    }
+    else if (typingMode) {
+      typingBar = typingBar.concat(key);
+    }
   }
-  else if (typingMode) {
-    typingBar = typingBar.concat(key);
-  }
-  
+    
 
 }
 
@@ -582,6 +656,7 @@ function keyPressed() {
     shared.debugState = !shared.debugState;
   } 
 
+  
   if (typingMode) {
     if (keyCode === BACKSPACE && typingBar.length > 0 && !keyIsDown(17)) {
       typingBar = typingBar.slice(0,typingBar.length - 1);
@@ -666,9 +741,7 @@ function updateUI() {
   pop(); 
 }
 
-function drawUI() {
 
-}
 
 // Check if a player is intersecting with the terrain
 function checkCollisions(playerX,playerY,playerZ,terrainObject) {
@@ -868,6 +941,7 @@ class Button {
         if (this.destination === "play") {
           connectToParty("room1");
           localGameState = "";
+          typingBar = "";
         }
         else {
           localGameState = this.destination;
@@ -944,7 +1018,8 @@ class Crewmate {
 
           else if (guest.player !== my.player && mouseIsPressed && mouseButton === LEFT && !guest.player.alive) {
             if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
-              console.log("BEEEEP");
+              partyEmit("gameStateChange", "vote");
+
             }
           }
 
@@ -1108,5 +1183,15 @@ class Crewmate {
     shared.ambientLevel += (keyIsDown(UP_ARROW) - keyIsDown(DOWN_ARROW))/1.5;
   }
 
+  reset() {
+    this.x = random(-300, 300);
+    this.y = -50;
+    this.z = random(-300, 300);
+    this.dx = 0;
+    this.dy = 0;
+    this.dz = 0;
+    this.alive = true;
+  }
+  
 }
 
