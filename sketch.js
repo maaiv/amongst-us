@@ -141,9 +141,9 @@ function draw() {
     gameLoop();
     if (shared.serverGameState === "lobby") {
       if (partyIsHost()) {
-        if (guests.length >= 2) {
+        if (guests.length >= 1) {
           if (shared.lobbyTimer === -1) {
-            shared.lobbyTimer = 3;
+            shared.lobbyTimer = 10;
             startSec = millis()/1000;
           }
           else if (shared.lobbyTimer === 0) {
