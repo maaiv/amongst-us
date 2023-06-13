@@ -35,7 +35,7 @@ let localGameState = "menu";
 
 
 
-let my, guests, shared, killSFX, cam, collideVisualCanvas, canvas3D, menuButtons, startSec;
+let my, guests, shared, killSFX, cam, collideVisualCanvas, canvas3D, menuButtons, startSec, guestPlayerIDs;
 
 
 let lobbyTerrain = [
@@ -93,9 +93,33 @@ function connectToParty(roomID) {
   }, () => {
     my = partyLoadMyShared({}, () => {
       my.player = new Crewmate(0,0,0,0,0);
+
+      if (typingBar.length === 0) {
+        my.player.id = random(["Jelly", "LeL", "Walex", "Mamun", "Mr Guest", "Gamba", "KayaanT"]);
+      }
+      else {
+        my.player.id = typingBar;
+      }
+
+      
+      LoopID:
+      for (let i = 0; i < 9; i++) {
+        console.log(guests.map((guest) => guest.player.id));
+        if ( guests.map((guest) => guest.player.id).filter( (guestID) => (guestID === my.player.id)).length <= 1 ) {
+          break LoopID;
+        }
+        if (i > 0) {
+          my.player.id = my.player.id.slice(0,my.player.id.length - 1).concat(i);
+        }
+        else {
+          my.player.id = my.player.id.concat(i);
+        }        
+      }
+
+      typingBar = "";
       rectMode(CORNER);
       textAlign(LEFT);
-  
+      
       // log shared data
       console.log("me", JSON.stringify(my));
       console.log("guests", JSON.stringify(guests));
@@ -182,7 +206,7 @@ function menuLoop() {
   else {
     fill(255, 135);
     stroke(0, 135);
-    text("Enter Username", 0, 0, 300);
+    text("Enter Nickname", 0, 0, 300);
   }
 
   
@@ -218,7 +242,7 @@ function lobbyLoop() {
         shared.lobbyTimer = 3;
         startSec = millis()/1000;
       }
-      else if (shared.lobbyTimer === 0) {
+      else if (shared.lobbyTimer <= 0) {
         partyEmit("gameStateChange", "play");
         partyEmit("newChatMessage", {content: "Starting game!", life: 10, colour:[60, 205]});
         
@@ -620,14 +644,14 @@ function keyTyped() {
         typingBar = typingBar.slice(0,typingBar.length - 1);
       }
     }
-    else {
+    else if (key !== "Enter" && typingBar.length < 30) {
       typingBar = typingBar.concat(key);
     }
   }
   else {
     if (key === "Enter") {
       if (typingMode && typingBar.length > 0) {
-        partyEmit("newChatMessage", {content: typingBar, life: 10});
+        partyEmit("newChatMessage", {content: `[${my.player.id}] ${typingBar}`, life: 10, colour: [my.player.h, 155]});
       }
       typingBar = "";
       typingMode = !typingMode;
@@ -652,14 +676,25 @@ function keyTyped() {
 
 // Toggle debug mode
 function keyPressed() {
-  if (keyCode === 80) {
-    shared.debugState = !shared.debugState;
-  } 
 
-  
-  if (typingMode) {
+  if (localGameState === "menu") {
     if (keyCode === BACKSPACE && typingBar.length > 0 && !keyIsDown(17)) {
       typingBar = typingBar.slice(0,typingBar.length - 1);
+    }
+  }
+
+  else {
+
+    if (keyCode === 80) {
+      shared.debugState = !shared.debugState;
+    } 
+
+
+    
+    if (typingMode) {
+      if (keyCode === BACKSPACE && typingBar.length > 0 && !keyIsDown(17)) {
+        typingBar = typingBar.slice(0,typingBar.length - 1);
+      }
     }
   }
 }
@@ -941,7 +976,7 @@ class Button {
         if (this.destination === "play") {
           connectToParty("room1");
           localGameState = "";
-          typingBar = "";
+
         }
         else {
           localGameState = this.destination;
