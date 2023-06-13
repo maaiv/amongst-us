@@ -651,7 +651,13 @@ function keyTyped() {
   else {
     if (key === "Enter") {
       if (typingMode && typingBar.length > 0) {
-        partyEmit("newChatMessage", {content: `[${my.player.id}] ${typingBar}`, life: 10, colour: [my.player.h, 155]});
+        if (typingBar[0] === "/") {
+          runCommand(typingBar);
+        }
+        else {
+          partyEmit("newChatMessage", {content: `[${my.player.id}] ${typingBar}`, life: 10, colour: [my.player.h, 155]});
+        }
+        
       }
       typingBar = "";
       typingMode = !typingMode;
@@ -701,6 +707,23 @@ function keyPressed() {
 
 function newChatMessage(data) {
   chat.push(data);
+}
+
+function runCommand(command) {
+  console.log(command.slice(0,5));
+  if (shared.serverGameState === "vote" && (command.slice(0,6) === "/vote" ||  command.slice(0,6) === "/vote ")) {
+
+    if (command.slice(6,7) === "") {
+      chat.push({content: "Please specify a player name", life: 10, colour: [0,255]});
+    }
+    else {
+      partyEmit("newChatMessage", {content: `voted for ${command.slice(6, command.length)}`, life: 10});
+    }   
+  }
+  else {
+    chat.push({content: "Invalid Command!", life: 10, colour: [0,255]});
+  }
+
 }
 
 function updateUI() {
