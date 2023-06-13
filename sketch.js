@@ -32,6 +32,10 @@ let lightpos = [];
 let typingMode = false;
 let typingBar = "";
 let localGameState = "menu";
+let voted = false;
+let votingTime = 30;
+
+let backgroundStars = [];
 
 
 
@@ -78,7 +82,7 @@ function connectToParty(roomID) {
   partySubscribe("newChatMessage", newChatMessage);
   partySubscribe("gameStateChange", gameStateChange);
   shared = partyLoadShared("shared", {  
-    ambientLevel: 50, 
+    ambientLevel: 0, 
     debugState: false, 
     terrain: lobbyTerrain, 
     lightSize: 20,
@@ -155,6 +159,10 @@ function setup() {
 
   menuButtons = {"menu": [new Button(width/2, height/2, 200, 50, "bello", 50, "play")]};
 
+  for (let i = 0; i < 500; i++) {
+    backgroundStars.push({x:random(-6500,6500), y:random(-3000, -2000), z:random(-6500,6500), size: random(100)/100});
+  }
+
 } 
 
 // Game update loop
@@ -229,6 +237,7 @@ function gameLoop() {
   drawPlayers();
   updateEnvironment();
   drawEnvironment();
+  drawSky();
 
   background(255);
   image(canvas3D,0,0,width,height);
@@ -245,6 +254,9 @@ function lobbyLoop() {
       else if (shared.lobbyTimer <= 0) {
         partyEmit("gameStateChange", "play");
         partyEmit("newChatMessage", {content: "Starting game!", life: 10, colour:[60, 205]});
+        shared.serverGameState = "play";
+        shared.terrain = hostTerrain;
+        shared.lobbyTimer = -1;
         
       }
       else if (millis()/1000 >= startSec + 1) {
@@ -261,24 +273,37 @@ function lobbyLoop() {
 }
 
 function voteLoop() {
+  if (partyIsHost()) {
 
+    if (shared.lobbyTimer === -1) {
+      shared.lobbyTimer = votingTime + 1;
+      startSec = millis()/1000;
+    }
+    else if (shared.lobbyTimer <= 0) {
+      partyEmit("gameStateChange", "play");
+      shared.serverGameState = "play";
+      shared.terrain = hostTerrain;
+    }
+    else if (millis()/1000 >= startSec + 1) {
+      shared.lobbyTimer -= round(millis()/1000 - startSec);
+      startSec = millis()/1000;
+      if (Number.isInteger(votingTime / shared.lobbyTimer) || shared.lobbyTimer <= 5) {
+        partyEmit("newChatMessage", {content: shared.lobbyTimer, life: 10, colour:[40, 205]});
+      }
+      
+    }
+
+
+  }
 }
 
 function gameStateChange(data) {
   if (data === "play") {
-    if (partyIsHost()) {
-      shared.serverGameState = "play";
-      shared.terrain = hostTerrain;
-    }
     my.player.reset();
   }
   else if (data === "vote") {
-    if (partyIsHost()) {
-      shared.serverGameState = "vote";
-      shared.terrain = lobbyTerrain;
-      partyEmit("newChatMessage", {content: "Voting has begun. Use /vote [player_name] to vote for them to be ejected!", life: 10, colour:[40, 205]});
-      
-    }
+    voted = false;
+    my.player.votes = 0;
     my.player.reset();
   }
 }
@@ -633,6 +658,25 @@ function drawEnvironment() {
   }
 }
 
+function drawSky() {
+  canvas3D.push();
+  canvas3D.noStroke();
+  canvas3D.emissiveMaterial(60, 30, 255);
+  for (let star of backgroundStars) {
+    canvas3D.translate(star.x, star.y, star.z);
+    canvas3D.box(star.size, star.size, star.size);
+    canvas3D.sphere(star.size * 15, 5, 5);
+    canvas3D.translate(-star.x, -star.y, -star.z);
+
+    star.x += star.size * 5;
+
+    if (star.x > my.player.x + 6000) {
+      star.x = my.player.x - 6000;
+    }
+  }
+  canvas3D.pop();
+}
+
 function keyTyped() {
 
   if (localGameState === "menu") {
@@ -691,16 +735,14 @@ function keyPressed() {
 
   else {
 
-    if (keyCode === 80) {
-      shared.debugState = !shared.debugState;
-    } 
-
-
     
     if (typingMode) {
       if (keyCode === BACKSPACE && typingBar.length > 0 && !keyIsDown(17)) {
         typingBar = typingBar.slice(0,typingBar.length - 1);
       }
+    }
+    else if (keyCode === 80) {
+      shared.debugState = !shared.debugState;
     }
   }
 }
@@ -713,12 +755,29 @@ function runCommand(command) {
   console.log(command.slice(0,5));
   if (shared.serverGameState === "vote" && (command.slice(0,6) === "/vote" ||  command.slice(0,6) === "/vote ")) {
 
-    if (command.slice(6,7) === "") {
-      chat.push({content: "Please specify a player name", life: 10, colour: [0,255]});
+    if (voted) {
+      chat.push({content: "You have already voted!", life: 10, colour: [0,255]});
     }
     else {
-      partyEmit("newChatMessage", {content: `voted for ${command.slice(6, command.length)}`, life: 10});
-    }   
+      if (command.slice(6,7) === "") {
+        chat.push({content: "Please specify a player name", life: 10, colour: [0,255]});
+      }
+      else {
+        idCheckLoop:
+        for (let guest of guests) {
+          if (command.slice(6, command.length) === guest.player.id) {
+            voted = true; 
+            partyEmit("newChatMessage", {content: `voted for ${command.slice(6, command.length)}`, life: 10});
+            guest.player.votes += 1;
+            break idCheckLoop;
+          }
+        }
+        if (!voted) {
+          chat.push({content: "Invalid player name", life: 10, colour: [0,255]});
+        }   
+        
+      }
+    }
   }
   else {
     chat.push({content: "Invalid Command!", life: 10, colour: [0,255]});
@@ -1036,6 +1095,7 @@ class Crewmate {
     this.alive = true;
     this.id = noise(random(1,10));
     this.type = "impostor";
+    this.votes = 0;
   }
 
   update() {
@@ -1073,11 +1133,14 @@ class Crewmate {
           }
 
           // report body
-
           else if (guest.player !== my.player && mouseIsPressed && mouseButton === LEFT && !guest.player.alive) {
             if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
               partyEmit("gameStateChange", "vote");
+              shared.serverGameState = "vote";
+              shared.terrain = lobbyTerrain;
 
+              partyEmit("newChatMessage", {content: "Voting has begun. Use /vote [player_name] to vote for them to be ejected!", life: 10, colour:[40, 205]});
+        
             }
           }
 
@@ -1111,7 +1174,9 @@ class Crewmate {
 
       // apply y velocity and check collisions
       this.y += this.dy;
-
+      if (keyIsDown(32) && !typingMode) {
+        this.dy = -shared.playerJumpPower;
+      }
       let touchingGround = false;
 
       for (let terrainObject of shared.terrain) {
