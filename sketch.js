@@ -37,6 +37,8 @@ let votingTime = 30;
 
 let backgroundStars = [];
 
+let animationTimeline = 0;
+
 
 
 let my, guests, shared, killSFX, cam, collideVisualCanvas, canvas3D, menuButtons, startSec, guestPlayerIDs;
@@ -170,6 +172,7 @@ function draw() {
   if (localGameState === "menu") {
     menuLoop();
   }
+  
   else if (localGameState === "play") {
     gameLoop();
 
@@ -179,6 +182,9 @@ function draw() {
     else if (shared.serverGameState === "vote") {
       voteLoop();
     }
+  }
+  else if (localGameState === "animation") {
+    animateLoop();
   }
 }
 
@@ -226,6 +232,18 @@ function menuLoop() {
   pop();
 
 
+}
+
+function animateLoop() {
+  if (localGameState === "eject") {
+    drawInit();
+    cam.setPosition(0, 1000, 0);
+    cam.lookAt(10, 1000, 0);
+    drawCrewMateModel(200, 1000, -100 + animationTimeline, 0, 0, 0, true);
+    animationTimeline += 1;
+  }
+  background(255);
+  image(canvas3D,0,0,width,height);
 }
 
 function gameLoop() {
@@ -308,9 +326,7 @@ function gameStateChange(data) {
   }
 }
 
-function beginTimer() {
-  
-}
+
 
 // Set background and lock pointer light
 function drawInit() {
@@ -320,7 +336,7 @@ function drawInit() {
   // create a global light so WEBGL doesn't just break when there are no lights
   canvas3D.pointLight(
     0,0,shared.ambientLevel,
-    my.player.x,my.player.y - 200,my.player.z
+    my.player.x,my.player.y - 800,my.player.z
   );
 
   canvas3D.ambientLight(0, 0, shared.ambientLevel);
