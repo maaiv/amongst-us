@@ -34,12 +34,11 @@ let typingBar = "";
 let localGameState = "menu";
 let voted = false;
 let votingTime = 30;
+let votedPlayer = false;
 
 let backgroundStars = [];
 
 let animationTimeline = 0;
-
-
 
 let my, guests, shared, killSFX, cam, collideVisualCanvas, canvas3D, menuButtons, startSec, guestPlayerIDs;
 
@@ -71,12 +70,16 @@ let chat = [
 // Connect to the server and shared data, and load sounds
 function preload() {
   killSFX = loadSound("assets/killSFX.mp3");
-
 }
 
 function connectToParty(roomID) {
   partyConnect("wss://demoserver.p5party.org", "amogus", roomID);
 
+  let voteMap = new Map([
+    ["apples", 500],
+    ["bananas", 300],
+    ["oranges", 200]
+  ]);
 
   guests = partyLoadGuestShareds();
 
@@ -86,7 +89,7 @@ function connectToParty(roomID) {
   shared = partyLoadShared("shared", {  
     ambientLevel: 0, 
     debugState: false, 
-    terrain: lobbyTerrain, 
+    terrain: [...lobbyTerrain], 
     lightSize: 20,
     playerAcceleration: 1,
     playerDeceleration: 0.1,
@@ -95,11 +98,12 @@ function connectToParty(roomID) {
     worldGravity: 0.15,
     playerPerspective: 3,
     serverGameState: "lobby",
-    lobbyTimer: -1
+    votes: {IDs: [], total: []},
+    lobbyTimer: false
   }, () => {
     my = partyLoadMyShared({}, () => {
       my.player = new Crewmate(0,0,0,0,0);
-
+      
       if (typingBar.length === 0) {
         my.player.id = random(["Jelly", "LeL", "Walex", "Mamun", "Mr Guest", "Gamba", "KayaanT"]);
       }
@@ -130,7 +134,8 @@ function connectToParty(roomID) {
       console.log("me", JSON.stringify(my));
       console.log("guests", JSON.stringify(guests));
       console.log("am i host?", partyIsHost());
-  
+      shared.votes.IDs.push(my.player.id);
+      shared.votes.total.push(my.player.id);
       localGameState = "play";
     });
 
@@ -162,7 +167,7 @@ function setup() {
   menuButtons = {"menu": [new Button(width/2, height/2, 200, 50, "bello", 50, "play")]};
 
   for (let i = 0; i < 500; i++) {
-    backgroundStars.push({x:random(-6500,6500), y:random(-3000, -2000), z:random(-6500,6500), size: random(100)/100});
+    backgroundStars.push({x:random(-6500,6500), y:random(-4000, -2000), z:random(-6500,6500), size: random(100)/100});
   }
 
 } 
@@ -183,7 +188,7 @@ function draw() {
       voteLoop();
     }
   }
-  else if (localGameState === "animation") {
+  else {
     animateLoop();
   }
 }
@@ -236,11 +241,34 @@ function menuLoop() {
 
 function animateLoop() {
   if (localGameState === "eject") {
-    drawInit();
-    cam.setPosition(0, 1000, 0);
-    cam.lookAt(10, 1000, 0);
-    drawCrewMateModel(200, 1000, -100 + animationTimeline, 0, 0, 0, true);
+    drawInit(100);
+    drawSky();
+
+    cam.setPosition(0, -3000, 0);
+    cam.lookAt(10, -3000, 0);
+    push();
+    canvas3D.ambientLight(150);
+    canvas3D.pointLight(0, 0, 150, 500, -3000, -width);
+    canvas3D.translate(500, -3000, -width/2.5 + animationTimeline);
+    canvas3D.rotateX(animationTimeline/1.5);
+    canvas3D.rotateY(-animationTimeline/3);
+
+    if (votedPlayer.type === "impostor") {
+      drawCrewMateModel(0, 30, 0, 0, votedPlayer.h, 1, true);
+
+    }
+    else if (votedPlayer.type === "crewmate") {
+      drawCrewMateModel(0, 30, 0, 0, votedPlayer.h, 3, true);
+
+    }
+
+    pop();
     animationTimeline += 1;
+    if (animationTimeline >= 540) {
+      localGameState = "play";
+      animationTimeline = 0;
+      votedPlayer = false;
+    }
   }
   background(255);
   image(canvas3D,0,0,width,height);
@@ -265,16 +293,16 @@ function gameLoop() {
 function lobbyLoop() {
   if (partyIsHost()) {
     if (guests.length >= 1) {
-      if (shared.lobbyTimer === -1) {
-        shared.lobbyTimer = 3;
+      if (shared.lobbyTimer === false) {
+        shared.lobbyTimer = 1;
         startSec = millis()/1000;
       }
       else if (shared.lobbyTimer <= 0) {
         partyEmit("gameStateChange", "play");
         partyEmit("newChatMessage", {content: "Starting game!", life: 10, colour:[60, 205]});
         shared.serverGameState = "play";
-        shared.terrain = hostTerrain;
-        shared.lobbyTimer = -1;
+        shared.terrain = [...hostTerrain];
+        shared.lobbyTimer = false;
         
       }
       else if (millis()/1000 >= startSec + 1) {
@@ -283,8 +311,8 @@ function lobbyLoop() {
         partyEmit("newChatMessage", {content: shared.lobbyTimer, life: 10, colour:[40, 205]});
       }
     }
-    else if (shared.lobbyTimer !== -1) {
-      shared.lobbyTimer = -1;
+    else if (shared.lobbyTimer !== false) {
+      shared.lobbyTimer = false;
       partyEmit("newChatMessage", {content: "Start game failed! Not enough players.", life: 10, colour:[5, 205]});
     }
   }
@@ -292,15 +320,18 @@ function lobbyLoop() {
 
 function voteLoop() {
   if (partyIsHost()) {
-
-    if (shared.lobbyTimer === -1) {
+    if (shared.lobbyTimer === false) {
       shared.lobbyTimer = votingTime + 1;
       startSec = millis()/1000;
     }
     else if (shared.lobbyTimer <= 0) {
+
+      partyEmit("gameStateChange", "localEject");
       partyEmit("gameStateChange", "play");
       shared.serverGameState = "play";
-      shared.terrain = hostTerrain;
+      shared.terrain = [...hostTerrain];
+      console.log("terrain shifted");
+      shared.lobbyTimer = false;
     }
     else if (millis()/1000 >= startSec + 1) {
       shared.lobbyTimer -= round(millis()/1000 - startSec);
@@ -320,9 +351,31 @@ function gameStateChange(data) {
     my.player.reset();
   }
   else if (data === "vote") {
+
     voted = false;
-    my.player.votes = 0;
     my.player.reset();
+
+  }
+  else if (data === "localEject") {
+    localGameState = "eject";
+    let highestVotes = 0;
+    
+    for (let ID of shared.votes.IDs) {
+      
+      if (shared.votes.total[shared.votes.IDs.indexOf(ID)] > highestVotes) {
+        for (let guest of guests) {
+          if (guest.player.id === ID) {
+            votedPlayer = guest.player;
+          }
+        }
+        
+        highestVotes = shared.votes.total[shared.votes.IDs.indexOf(ID)];
+      }
+      else if (shared.votes.total[shared.votes.IDs.indexOf(ID)] === highestVotes) {
+        votedPlayer = false;
+      }
+    }
+
   }
 }
 
@@ -331,7 +384,7 @@ function gameStateChange(data) {
 // Set background and lock pointer light
 function drawInit() {
   canvas3D.reset();
-  canvas3D.background(shared.ambientLevel);
+  canvas3D.background(0);
   
   // create a global light so WEBGL doesn't just break when there are no lights
   canvas3D.pointLight(
@@ -474,6 +527,7 @@ function drawPlayers() {
     let minimumDistance = min(lightpos.map(v => dist(0, 0, v[0], v[1])));
     canvas3D.ambientLight(map(minimumDistance, 0, 125 + 50 * shared.lightSize, 105, 5, true));
     drawCrewMateModel(0,0,0,0,180,2,false);
+
     canvas3D.pop();
   }
 }
@@ -676,6 +730,7 @@ function drawEnvironment() {
 
 function drawSky() {
   canvas3D.push();
+  canvas3D.translate(my.player.x, 0, my.player.z);
   canvas3D.noStroke();
   canvas3D.emissiveMaterial(60, 30, 255);
   for (let star of backgroundStars) {
@@ -685,7 +740,6 @@ function drawSky() {
     canvas3D.translate(-star.x, -star.y, -star.z);
 
     star.x += star.size * 5;
-
     if (star.x > my.player.x + 6000) {
       star.x = my.player.x - 6000;
     }
@@ -768,9 +822,7 @@ function newChatMessage(data) {
 }
 
 function runCommand(command) {
-  console.log(command.slice(0,5));
   if (shared.serverGameState === "vote" && (command.slice(0,6) === "/vote" ||  command.slice(0,6) === "/vote ")) {
-
     if (voted) {
       chat.push({content: "You have already voted!", life: 10, colour: [0,255]});
     }
@@ -780,11 +832,12 @@ function runCommand(command) {
       }
       else {
         idCheckLoop:
-        for (let guest of guests) {
-          if (command.slice(6, command.length) === guest.player.id) {
+        for (let ID of shared.votes.IDs) {
+          if (command.slice(6, command.length) === ID) {
             voted = true; 
-            partyEmit("newChatMessage", {content: `voted for ${command.slice(6, command.length)}`, life: 10});
-            guest.player.votes += 1;
+            partyEmit("newChatMessage", {content: `voted for ${command.slice(6, command.length)}`, life: 10, colour: [my.player.h, 155]});
+            // partyEmit("newChatMessage", {content: `[${my.player.id}] ${typingBar}`, life: 10, colour: [my.player.h, 155]});
+            shared.votes.total[shared.votes.IDs.indexOf(ID)] += 1;
             break idCheckLoop;
           }
         }
@@ -795,9 +848,21 @@ function runCommand(command) {
       }
     }
   }
+  else if (command.slice(0,6) === "/eject") {
+    localGameState = "eject";
+  }
+  else if (command.slice(0,7) === "/voting") {
+    shared.serverGameState = "vote";
+
+  }
+  else if (command.slice(0,6) === "/skip") {
+    shared.lobbyTimer = 3;
+  }
   else {
     chat.push({content: "Invalid Command!", life: 10, colour: [0,255]});
   }
+
+
 
 }
 
@@ -966,7 +1031,7 @@ function findNormal(playerX,playerY,playerZ,playerDir,terrainObject) {
     for (let i = 0; i <= 360; i++) {
       tempDir += 1;
       let notCollided = true;
-      for (let thisObject of shared.terrain) {
+      for (let thisObject of shared.terrain) {r
         if (playerY > thisObject.y - thisObject.height/2 && playerY - 65 < thisObject.y + thisObject.height/2) {
           notCollided = notCollided * !normalCollide(playerX,playerZ,tempDir,thisObject);
         }
@@ -1130,36 +1195,42 @@ class Crewmate {
         } 
 
         // check for other players
-
-        for (let guest of guests) {
-          // use knife
-          if (this.hold === 2) {
-            if (guest.player !== my.player && mouseIsPressed && mouseButton === LEFT && !killSFX.isPlaying()) {
-              if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
-                killSFX.play();
-                let tempDir = atan2(my.player.x - guest.player.x, my.player.z - guest.player.z);
-                partyEmit("die", {
-                  id: guest.player.id,
-                  dx: sin(tempDir) * -7,
-                  dy: -5,
-                  dz: cos(tempDir) * -7
-                });
+        if (shared.serverGameState !== "vote") {
+          for (let guest of guests) {
+            // use knife
+            if (this.hold === 2) {
+              if (guest.player !== my.player && mouseIsPressed && mouseButton === LEFT && !killSFX.isPlaying()) {
+                if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
+                  killSFX.play();
+                  let tempDir = atan2(my.player.x - guest.player.x, my.player.z - guest.player.z);
+                  partyEmit("die", {
+                    id: guest.player.id,
+                    dx: sin(tempDir) * -7,
+                    dy: -5,
+                    dz: cos(tempDir) * -7
+                  });
+                }
               }
             }
-          }
 
-          // report body
-          else if (guest.player !== my.player && mouseIsPressed && mouseButton === LEFT && !guest.player.alive) {
-            if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
-              partyEmit("gameStateChange", "vote");
-              shared.serverGameState = "vote";
-              shared.terrain = lobbyTerrain;
+            // report body
+            else if (guest.player !== my.player && mouseIsPressed && mouseButton === LEFT && !guest.player.alive) {
+              if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
+                partyEmit("gameStateChange", "vote");
+                shared.serverGameState = "vote";
+                shared.terrain = [...lobbyTerrain];
 
-              partyEmit("newChatMessage", {content: "Voting has begun. Use /vote [player_name] to vote for them to be ejected!", life: 10, colour:[40, 205]});
-        
+                for (let i = 0; i < shared.votes.total.length; i ++) {
+                  shared.votes.total[i] = 0;
+                }
+
+                
+                partyEmit("newChatMessage", {content: "Voting has begun. Use /vote [player_name] to vote for them to be ejected!", life: 10, colour:[40, 205]});
+          
+              }
             }
-          }
 
+          }
         }
 
       }
@@ -1190,9 +1261,7 @@ class Crewmate {
 
       // apply y velocity and check collisions
       this.y += this.dy;
-      if (keyIsDown(32) && !typingMode) {
-        this.dy = -shared.playerJumpPower;
-      }
+
       let touchingGround = false;
 
       for (let terrainObject of shared.terrain) {
