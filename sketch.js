@@ -36,6 +36,7 @@ let voted = false;
 let votingTime = 30;
 let votedPlayer = false;
 
+
 let backgroundStars = [];
 
 let animationTimeline = 0;
@@ -89,7 +90,7 @@ function connectToParty(roomID) {
   shared = partyLoadShared("shared", {  
     ambientLevel: 0, 
     debugState: false, 
-    terrain: [...lobbyTerrain], 
+    terrain: structuredClone(lobbyTerrain), 
     lightSize: 20,
     playerAcceleration: 1,
     playerDeceleration: 0.1,
@@ -241,37 +242,52 @@ function menuLoop() {
 
 function animateLoop() {
   if (localGameState === "eject") {
-    drawInit(100);
+    drawInit();
     drawSky();
 
     cam.setPosition(0, -3000, 0);
     cam.lookAt(10, -3000, 0);
     push();
+    
+    
     canvas3D.ambientLight(150);
     canvas3D.pointLight(0, 0, 150, 500, -3000, -width);
-    canvas3D.translate(500, -3000, -width/2.5 + animationTimeline);
+    canvas3D.translate(500, -3000, -width/2 + animationTimeline);
     canvas3D.rotateX(animationTimeline/1.5);
     canvas3D.rotateY(-animationTimeline/3);
-
+    let ejectText;
     if (votedPlayer.type === "impostor") {
-      drawCrewMateModel(0, 30, 0, 0, votedPlayer.h, 1, true);
-
+      drawCrewMateModel(0, 30, 0, 0, votedPlayer.h, 2, true, votedPlayer.type);
+      ejectText = my.player.id + " was the impostor";
     }
     else if (votedPlayer.type === "crewmate") {
-      drawCrewMateModel(0, 30, 0, 0, votedPlayer.h, 3, true);
-
+      drawCrewMateModel(0, 30, 0, 0, votedPlayer.h, 0, true, votedPlayer.type);
+      ejectText = my.player.id + " was not the impostor";
     }
-
     pop();
     animationTimeline += 1;
-    if (animationTimeline >= 540) {
-      localGameState = "play";
+    if (animationTimeline >= 500) {
+      localGameState = "play";  
       animationTimeline = 0;
       votedPlayer = false;
     }
+
+    background(255);
+    push();
+    strokeWeight(2);
+    fill(0);
+    stroke(255);
+    strokeWeight(3);
+    textSize(32);
+    textAlign(CENTER);
+    image(canvas3D,0,0,width,height);
+    rectMode(CENTER);
+    text(ejectText.slice(0,round(animationTimeline / 270 * ejectText.length)), width/2, height/3); 
+    pop();
+
   }
-  background(255);
-  image(canvas3D,0,0,width,height);
+
+
 }
 
 function gameLoop() {
@@ -301,7 +317,7 @@ function lobbyLoop() {
         partyEmit("gameStateChange", "play");
         partyEmit("newChatMessage", {content: "Starting game!", life: 10, colour:[60, 205]});
         shared.serverGameState = "play";
-        shared.terrain = [...hostTerrain];
+        shared.terrain = structuredClone(hostTerrain);
         shared.lobbyTimer = false;
         
       }
@@ -329,7 +345,7 @@ function voteLoop() {
       partyEmit("gameStateChange", "localEject");
       partyEmit("gameStateChange", "play");
       shared.serverGameState = "play";
-      shared.terrain = [...hostTerrain];
+      shared.terrain = structuredClone(hostTerrain);
       console.log("terrain shifted");
       shared.lobbyTimer = false;
     }
@@ -387,12 +403,24 @@ function drawInit() {
   canvas3D.background(0);
   
   // create a global light so WEBGL doesn't just break when there are no lights
-  canvas3D.pointLight(
-    0,0,shared.ambientLevel,
-    my.player.x,my.player.y - 800,my.player.z
-  );
 
-  canvas3D.ambientLight(0, 0, shared.ambientLevel);
+  if (my.player.type === "ghost") {
+    canvas3D.pointLight(
+      0,0,100,
+      my.player.x,my.player.y - 800,my.player.z
+    );
+    canvas3D.ambientLight(0, 0, 100);   
+  }
+  else {
+    canvas3D.pointLight(
+      0,0,shared.ambientLevel,
+      my.player.x,my.player.y - 800,my.player.z
+    );
+
+    canvas3D.ambientLight(0, 0, shared.ambientLevel);    
+  }
+
+
 
   if (mouseIsPressed) {
     requestPointerLock();
@@ -496,7 +524,7 @@ function createLights() {
   lightpos = [];
 
   for (let guest of guests) {
-    if (guest.player.hold === 1) {
+    if (guest.player.hold === 1 && guest.player.type !== "ghost") {
       canvas3D.spotLight(
         0,0,255,
         guest.player.x,guest.player.y - 400,guest.player.z,
@@ -511,14 +539,27 @@ function createLights() {
 // Calculate ambient lighting and draw player models
 function drawPlayers() {
   for (let guest of guests) {
-    if (guest.player !== my.player || shared.playerPerspective === 3) {
-      canvas3D.push();
-      // calculate ambient lighting depending on the closest distance to another light before rendering
-      let minimumDistance = min(lightpos.map(v => dist(guest.player.x,guest.player.z,v[0], v[1])));
-      canvas3D.ambientLight(map(minimumDistance,0,125 + 50 * shared.lightSize,105,0,true));
-      drawCrewMateModel(guest.player.x,guest.player.y,guest.player.z,guest.player.dir,guest.player.h,guest.player.hold,guest.player.alive);
-      canvas3D.pop();
+    if (my.player.type === "ghost") {
+      if (guest.player !== my.player || shared.playerPerspective === 3) {
+        canvas3D.push();
+        // calculate ambient lighting depending on the closest distance to another light before rendering
+        let minimumDistance = min(lightpos.map(v => dist(guest.player.x,guest.player.z,v[0], v[1])));
+        canvas3D.ambientLight(map(minimumDistance,0,125 + 50 * shared.lightSize,105,0,true));
+        drawCrewMateModel(guest.player.x,guest.player.y,guest.player.z,guest.player.dir,guest.player.h,guest.player.hold,guest.player.alive, guest.player.type);
+        canvas3D.pop();
+      }
     }
+    else {
+      if ((guest.player !== my.player || shared.playerPerspective === 3) && guest.player.type !== "ghost") {
+        canvas3D.push();
+        // calculate ambient lighting depending on the closest distance to another light before rendering
+        let minimumDistance = min(lightpos.map(v => dist(guest.player.x,guest.player.z,v[0], v[1])));
+        canvas3D.ambientLight(map(minimumDistance,0,125 + 50 * shared.lightSize,105,0,true));
+        drawCrewMateModel(guest.player.x,guest.player.y,guest.player.z,guest.player.dir,guest.player.h,guest.player.hold,guest.player.alive, guest.player.type);
+        canvas3D.pop();
+      }
+    }
+
   }
 
   // draw demo player model if in debug mode
@@ -526,14 +567,14 @@ function drawPlayers() {
     canvas3D.push();
     let minimumDistance = min(lightpos.map(v => dist(0, 0, v[0], v[1])));
     canvas3D.ambientLight(map(minimumDistance, 0, 125 + 50 * shared.lightSize, 105, 5, true));
-    drawCrewMateModel(0,0,0,0,180,2,false);
+    drawCrewMateModel(0,0,0,0,180,2,false, "crewmate");
 
     canvas3D.pop();
   }
 }
 
 // Draw player model
-function drawCrewMateModel(x,y,z,dir,h,hold,alive) {
+function drawCrewMateModel(x,y,z,dir,h,hold,alive,type) {
   
   canvas3D.push();
   
@@ -542,7 +583,13 @@ function drawCrewMateModel(x,y,z,dir,h,hold,alive) {
   canvas3D.noStroke();
   canvas3D.specularMaterial(25);
   canvas3D.shininess(10000);
-  canvas3D.ambientMaterial(h, 255, 255);
+  if (type === "ghost") {
+    canvas3D.ambientMaterial(h, 70, 255);
+  }
+  else {
+    canvas3D.ambientMaterial(h, 255, 255);
+  }
+  
   canvas3D.translate(x,y-36,z);
   canvas3D.rotateY(dir);
 
@@ -844,19 +891,35 @@ function runCommand(command) {
         if (!voted) {
           chat.push({content: "Invalid player name", life: 10, colour: [0,255]});
         }   
-        
       }
     }
   }
   else if (command.slice(0,6) === "/eject") {
     localGameState = "eject";
+    votedPlayer = my.player;
   }
   else if (command.slice(0,7) === "/voting") {
     shared.serverGameState = "vote";
-
   }
   else if (command.slice(0,6) === "/skip") {
     shared.lobbyTimer = 3;
+  }
+  else if (command.slice(0,9) === "/typeSet " || command.slice(0,9) === "/typeSet") {
+    if (command.slice(9,10) === "") {
+      chat.push({content: "Please specify a player name", life: 10, colour: [0,255]});
+    }
+    else if (command.slice(9,command.length) === "impostor") {
+      my.player.type = "impostor";
+    }
+    else if (command.slice(9,command.length) === "crewmate") {
+      my.player.type = "crewmate";
+    }
+    else if (command.slice(9,command.length) === "ghost") {
+      my.player.type = "ghost";
+    }
+    else {
+      chat.push({content: "Invalid type", life: 10, colour: [0,255]});
+    }
   }
   else {
     chat.push({content: "Invalid Command!", life: 10, colour: [0,255]});
@@ -1031,7 +1094,7 @@ function findNormal(playerX,playerY,playerZ,playerDir,terrainObject) {
     for (let i = 0; i <= 360; i++) {
       tempDir += 1;
       let notCollided = true;
-      for (let thisObject of shared.terrain) {r
+      for (let thisObject of shared.terrain) {
         if (playerY > thisObject.y - thisObject.height/2 && playerY - 65 < thisObject.y + thisObject.height/2) {
           notCollided = notCollided * !normalCollide(playerX,playerZ,tempDir,thisObject);
         }
@@ -1175,13 +1238,73 @@ class Crewmate {
     this.hold = 1;
     this.alive = true;
     this.id = noise(random(1,10));
-    this.type = "impostor";
+    this.type = "ghost";
     this.votes = 0;
   }
 
   update() {
+
+    if (this.type === "ghost") {
+      this.x += this.dx;
+      this.z += this.dz;
+      this.y += this.dy;
+      // point in direction of motion
+      if (shared.playerPerspective === 3) {
+        this.dir = atan2(this.dx,this.dz);
+      }
+      else if (shared.playerPerspective === 1) {
+        this.dir = -camYaw - 90;
+      }
+
+      
+      // detect keyboard input
+      if ((keyIsDown(83) + keyIsDown(87) === 1 || keyIsDown(65) + keyIsDown(68) === 1) && !typingMode) {
+
+        // perform math stuff to condense movement controls into a "single line" (this was a terrible idea)
+        let magnitude = !keyIsDown(83) * 2 - 1;
+        let dir = 
+        (keyIsDown(68) * 0 + 
+        keyIsDown(87) * 90 +
+        keyIsDown(65) * 180 + 
+        keyIsDown(83) * 90) / 
+        (keyIsDown(68) + 
+        keyIsDown(87) + 
+        keyIsDown(65) + 
+        keyIsDown(83)) * magnitude;
+
+        // accelerate player
+        this.dx -= shared.playerAcceleration * sin(dir - camYaw);
+        this.dz -= shared.playerAcceleration * cos(dir - camYaw);
+
+        // cap player velocity
+        if (Math.sqrt(this.dx**2 + this.dz**2) > shared.playerMaxVelocity) {
+          let ratio = shared.playerMaxVelocity/Math.sqrt(this.dx**2 + this.dz**2);
+          this.dx = lerp(0,this.dx,ratio);
+          this.dz = lerp(0,this.dz,ratio);
+        }
+      }
+      else {
+        // decelerate player
+        this.dx = this.dx * (1 - shared.playerDeceleration);
+        this.dz = this.dz * (1 - shared.playerDeceleration);
+      }
+
+      if ((keyIsDown(32) || keyIsDown(16)) && !typingMode) {
+        this.dy -= keyIsDown(32) - keyIsDown(16);
+        if (this.dy > shared.playerMaxVelocity) {
+          this.dy = shared.playerMaxVelocity;
+        }
+        else if (this.dy < -shared.playerMaxVelocity) {
+          this.dy = -shared.playerMaxVelocity;
+        }
+      }        
+      else {
+        this.dy = this.dy * (1 - shared.playerDeceleration);
+      }
+    }
+
     // player state if alive
-    if (this.alive) {
+    else if (this.alive) {
       // select item
       if (!typingMode) {
         if (keyIsDown(49)) {
@@ -1218,7 +1341,7 @@ class Crewmate {
               if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
                 partyEmit("gameStateChange", "vote");
                 shared.serverGameState = "vote";
-                shared.terrain = [...lobbyTerrain];
+                shared.terrain = structuredClone(lobbyTerrain);
 
                 for (let i = 0; i < shared.votes.total.length; i ++) {
                   shared.votes.total[i] = 0;
