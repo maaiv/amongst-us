@@ -43,6 +43,7 @@ let animationTimeline = 0;
 
 let my, guests, shared, cam, collideVisualCanvas, canvas3D, menuButtons, startSec, guestPlayerIDs;
 let killSFX, voteAlarm, walkSounds = [];
+let touchingGround = 0;
 
 
 let lobbyTerrain = [
@@ -260,30 +261,35 @@ function animateLoop() {
     canvas3D.translate(500, -3000, -width/2 + animationTimeline);
     canvas3D.rotateX(animationTimeline/1.5);
     canvas3D.rotateY(-animationTimeline/3);
-    let ejectText;
+    let ejectText = "no one was ejected";
     if (votedPlayer.type === "impostor") {
       drawCrewMateModel(0, 30, 0, 0, votedPlayer.h, 2, true, votedPlayer.type);
-      ejectText = my.player.id + " was the impostor";
+      ejectText = votedPlayer.id + " was the impostor";
     }
     else if (votedPlayer.type === "crewmate") {
       drawCrewMateModel(0, 30, 0, 0, votedPlayer.h, 0, true, votedPlayer.type);
-      ejectText = my.player.id + " was not the impostor";
+      ejectText = votedPlayer.id + " was not the impostor";
     }
     pop();
     animationTimeline += 1;
     if (animationTimeline >= 500) {
       localGameState = "play";  
       animationTimeline = 0;
+      for (let guest of guests) {
+        if (guest.player === votedPlayer) { 
+          guest.player.type = "ghost";
+        }
+      }
       votedPlayer = false;
     }
 
     background(255);
     push();
-    strokeWeight(2);
+    strokeWeight(1);
     fill(0);
     stroke(255);
     strokeWeight(3);
-    textSize(32);
+    textSize(35);
     textAlign(CENTER);
     image(canvas3D,0,0,width,height);
     rectMode(CENTER);
@@ -351,8 +357,10 @@ function voteLoop() {
       partyEmit("gameStateChange", "play");
       shared.serverGameState = "play";
       shared.terrain = structuredClone(hostTerrain);
-      console.log("terrain shifted");
       shared.lobbyTimer = false;
+
+
+    
     }
     else if (millis()/1000 >= startSec + 1) {
       shared.lobbyTimer -= round(millis()/1000 - startSec);
@@ -382,14 +390,12 @@ function gameStateChange(data) {
     let highestVotes = 0;
     
     for (let ID of shared.votes.IDs) {
-      
       if (shared.votes.total[shared.votes.IDs.indexOf(ID)] > highestVotes) {
         for (let guest of guests) {
           if (guest.player.id === ID) {
             votedPlayer = guest.player;
           }
         }
-        
         highestVotes = shared.votes.total[shared.votes.IDs.indexOf(ID)];
       }
       else if (shared.votes.total[shared.votes.IDs.indexOf(ID)] === highestVotes) {
@@ -538,10 +544,12 @@ function createLightSounds() {
       );
       lightpos.push([guest.player.x,guest.player.z]);
     }
+    if (guest.player.walking === true && frameCount % 20 === 0) {
 
-    if (guest.player.walking && frameCount % 20 === 0) {
-      walkSounds[round(random([0,1,2,3,4,5,6]))].play();
+      walkSounds[random([0,1,2,3,4,5,6])].play();
     }
+
+
 
   }
   
@@ -1256,7 +1264,7 @@ class Crewmate {
   }
 
   update() {
-
+    this.walking = false;
     if (this.type === "ghost") {
       this.x += this.dx;
       this.z += this.dz;
@@ -1398,9 +1406,12 @@ class Crewmate {
 
       // apply y velocity and check collisions
       this.y += this.dy;
+      
+      if (touchingGround > 0) {
+        touchingGround -= 1;
+      }
 
-      let touchingGround = false;
-
+      
       for (let terrainObject of shared.terrain) {
         if (checkCollisions(this.x, this.y, this.z, terrainObject)) {
           if (this.dy >= 0) {
@@ -1419,19 +1430,21 @@ class Crewmate {
             }
             this.dy = 0;
           }
-          touchingGround = true;
+          touchingGround = 2;
         } 
       }
 
       // apply gravity
-      if (!touchingGround) {
+      if (touchingGround < 2) {
         this.dy += shared.worldGravity;
       }
       
-      
+
       // detect keyboard input
       if ((keyIsDown(83) + keyIsDown(87) === 1 || keyIsDown(65) + keyIsDown(68) === 1) && !typingMode) {
-        this.walking = touchingGround;
+        
+        this.walking = touchingGround > 0;
+        
         
         // perform math stuff to condense movement controls into a "single line" (this was a terrible idea)
         let magnitude = !keyIsDown(83) * 2 - 1;
@@ -1460,7 +1473,7 @@ class Crewmate {
         // decelerate player
         this.dx = this.dx * (1 - shared.playerDeceleration);
         this.dz = this.dz * (1 - shared.playerDeceleration);
-        this.walking = false;
+
       }
       
       
