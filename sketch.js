@@ -35,16 +35,12 @@ let localGameState = "menu";
 let voted = false;
 let votingTime = 30;
 let votedPlayer = false;
-
-
 let backgroundStars = [];
-
 let animationTimeline = 0;
 
 let my, guests, shared, cam, collideVisualCanvas, canvas3D, menuButtons, startSec, guestPlayerIDs;
 let killSFX, voteAlarm, walkSounds = [];
 let touchingGround = 0;
-
 
 let lobbyTerrain = [
   {type: "box", x: 0, y: 50, z: 0, width: 1500, height: 50, length: 1500, rotation: 0},
@@ -56,21 +52,26 @@ let lobbyTerrain = [
 
 // Create environment objects
 let hostTerrain = [
-  {type: "box", x: 0, y: 50, z: 0, width: 100*100, height: 100, length: 100*100, rotation: 0},
-  {type: "box", x: 200, y: 0, z: 0, width: 100, height: 100, length: 100, rotation: 0},
-  {type: "box", x: 200, y: -150, z: 200, width: 100, height: 100, length: 100, rotation: 0},
-  // {type: "polygon", x: -200, y: 20, z: 300, relativeVertices: [[0,0],[0,200],[100,200],[100,-100], [-200,-100], [-200,200],[-100,200], [-100,0]], height: 100, rotation: 0},
-  // {type: "polygon", x: -400, y: 20, z: 0, relativeVertices: [[0,0],[0,200],[100,100],[100,0],[-300,-100]], height: 100, rotation: -10}
+  {type: "box", x: 0, y: 50, z: 0, width: 3600, height: 100, length: 3600, rotation: 0},
+  {type: "box", x: 300, y: -30, z: 0, width: 100, height: 60, length: 100, rotation: 0}, 
+  {type: "box", x: 500, y: -110, z: 0, width: 100, height: 60, length: 100, rotation: 0}, 
+  {type: "box", x: 300, y: -30, z: 400, width: 300, height: 60, length: 300, rotation: 0},
+  {type: "box", x: -300, y: -30, z: -600, width: 800, height: 60, length: 800, rotation: 0},
+  {type: "cylinder", x: -300, y: -30, z: 400, radius: 100, height: 60},
+  {type: "cylinder", x: 0, y: -350, z: 1500, radius: 200, height: 700},
+  {type: "cylinder", x: -700, y: -380, z: 1500, radius: 200, height: 760},
+  {type: "cylinder", x: -700 * 2, y: -410, z: 1500, radius: 200, height: 820}
 ];
+for (let i = 1; i < 10; i += 1) {
+  hostTerrain.push({type: "box", x: 500, y: -110 - i * 80, z: i * 200, width: 100, height: 60, length: 100, rotation: 0});
+}
 
-let chat = [
-  {content: "Frosty the snowman was a jolly happy soul", life: 10}, 
-  {content: "with a corn cob pipe and a button nose", life: 10},
-  {content: "and two eyes made out of coal", life: 10},
-  {content: "Frosty the snowman was a fairy tale they say he was made of snow but the children know how he came to life one day", life: 10},
-];
+// instantiate chat
+let chat = [];
 
-// Connect to the server and shared data, and load sounds
+
+
+// load sounds
 function preload() {
   killSFX = loadSound("assets/killSFX.mp3");
   voteAlarm = loadSound("assets/voteAlarm.mp3");
@@ -79,17 +80,11 @@ function preload() {
   }
 }
 
+// Connect to the server and shared data
 function connectToParty(roomID) {
   partyConnect("wss://demoserver.p5party.org", "amogus", roomID);
 
-  let voteMap = new Map([
-    ["apples", 500],
-    ["bananas", 300],
-    ["oranges", 200]
-  ]);
-
   guests = partyLoadGuestShareds();
-
   partySubscribe("die", die);
   partySubscribe("newChatMessage", newChatMessage);
   partySubscribe("gameStateChange", gameStateChange);
@@ -111,14 +106,13 @@ function connectToParty(roomID) {
     my = partyLoadMyShared({}, () => {
       my.player = new Crewmate(0,0,0,0,0);
       
+      // autogenerate Username
       if (typingBar.length === 0) {
         my.player.id = random(["Jelly", "LeL", "Walex", "Mamun", "Mr Guest", "Gamba", "KayaanT"]);
       }
       else {
         my.player.id = typingBar;
       }
-
-      
       LoopID:
       for (let i = 0; i < 9; i++) {
         console.log(guests.map((guest) => guest.player.id));
@@ -137,20 +131,18 @@ function connectToParty(roomID) {
       rectMode(CORNER);
       textAlign(LEFT);
       
+      shared.votes.IDs.push(my.player.id);
+      shared.votes.total.push(my.player.id);
+      localGameState = "play";
       // log shared data
       console.log("me", JSON.stringify(my));
       console.log("guests", JSON.stringify(guests));
       console.log("am i host?", partyIsHost());
-      shared.votes.IDs.push(my.player.id);
-      shared.votes.total.push(my.player.id);
-      localGameState = "play";
     });
-
   });
-  
 }
 
-// Set sketch modes, canvas, and subscribe to die message
+// Set sketch modes, create canvases, and subscribe to messages
 function setup() {
   createCanvas(windowWidth, windowHeight);
   angleMode(DEGREES);
@@ -158,9 +150,7 @@ function setup() {
   textAlign(CENTER);
   colorMode(HSB, 255);
   
-  // instantiate player object, hitbox visual, and 3d canvas
-  
-
+  // instantiate player object, hitbox visual, 3D canvas, and menu buttons
   collideVisualCanvas = createGraphics(180,180);
   collideVisualCanvas.angleMode(DEGREES);
   
@@ -169,10 +159,9 @@ function setup() {
   canvas3D.angleMode(DEGREES);
   
   cam = canvas3D.createCamera();
-
-
   menuButtons = {"menu": [new Button(width/2, height/2, 200, 50, "bello", 50, "play")]};
 
+  // create stars
   for (let i = 0; i < 500; i++) {
     backgroundStars.push({x:random(-6500,6500), y:random(-4000, -2000), z:random(-6500,6500), size: random(100)/100});
   }
@@ -181,13 +170,11 @@ function setup() {
 
 // Game update loop
 function draw() {
-  if (localGameState === "menu") {
+  if (localGameState === "menu") { 
     menuLoop();
   }
-  
   else if (localGameState === "play") {
     gameLoop();
-
     if (shared.serverGameState === "lobby") {
       lobbyLoop();
     }
@@ -200,6 +187,7 @@ function draw() {
   }
 }
 
+// loop for detecing menu input and events
 function menuLoop() {
   background(255);
   for (let button of menuButtons[localGameState]) {
@@ -207,7 +195,6 @@ function menuLoop() {
     button.draw();
   }
 
-  
   // display text
   push();
   strokeWeight(2.5);
@@ -215,8 +202,6 @@ function menuLoop() {
   stroke(0, 0, 0);
   translate(width/2, height/3);
 
-
-  push();
   strokeWeight(2);
   fill(0, 55);
   stroke(0,155);
@@ -224,6 +209,7 @@ function menuLoop() {
 
   strokeWeight(3);
 
+  // display username
   if (typingBar.length > 0) {
     fill(255, 205);
     stroke(0, 205);
@@ -234,18 +220,10 @@ function menuLoop() {
     stroke(0, 135);
     text("Enter Nickname", 0, 0, 300);
   }
-
-  
-
-  fill(255);
-  stroke(0);
   pop();
-
-  pop();
-
-
 }
 
+// Loop for displaying animations such as eject
 function animateLoop() {
   if (localGameState === "eject") {
     drawInit();
@@ -253,9 +231,9 @@ function animateLoop() {
 
     cam.setPosition(0, -3000, 0);
     cam.lookAt(10, -3000, 0);
+
+    // setup canvas
     push();
-    
-    
     canvas3D.ambientLight(150);
     canvas3D.pointLight(0, 0, 150, 500, -3000, -width);
     canvas3D.translate(500, -3000, -width/2 + animationTimeline);
@@ -271,6 +249,9 @@ function animateLoop() {
       ejectText = votedPlayer.id + " was not the impostor";
     }
     pop();
+    
+    // progress animation
+
     animationTimeline += 1;
     if (animationTimeline >= 500) {
       localGameState = "play";  
@@ -283,9 +264,9 @@ function animateLoop() {
       votedPlayer = false;
     }
 
-    background(255);
+    
+    // display text
     push();
-    strokeWeight(1);
     fill(0);
     stroke(255);
     strokeWeight(3);
@@ -295,12 +276,10 @@ function animateLoop() {
     rectMode(CENTER);
     text(ejectText.slice(0,round(animationTimeline / 270 * ejectText.length)), width/2, height/3); 
     pop();
-
   }
-
-
 }
 
+// Loop for updating and displaying the game
 function gameLoop() {
   drawInit();
   collideVisual();
@@ -317,14 +296,17 @@ function gameLoop() {
   updateUI();
 }
 
+// Loop for progressing lobby events
 function lobbyLoop() {
   if (partyIsHost()) {
-    if (guests.length >= 1) {
+    if (guests.length >= 4) { 
+      // start timer
       if (shared.lobbyTimer === false) {
-        shared.lobbyTimer = 1;
+        shared.lobbyTimer = 10;
         startSec = millis()/1000;
       }
       else if (shared.lobbyTimer <= 0) {
+        // start game
         partyEmit("gameStateChange", "play");
         partyEmit("newChatMessage", {content: "Starting game!", life: 10, colour:[60, 205]});
         shared.serverGameState = "play";
@@ -333,48 +315,48 @@ function lobbyLoop() {
         
       }
       else if (millis()/1000 >= startSec + 1) {
+        // tick timer
         shared.lobbyTimer -= round(millis()/1000 - startSec);
         startSec = millis()/1000;
         partyEmit("newChatMessage", {content: shared.lobbyTimer, life: 10, colour:[40, 205]});
       }
     }
     else if (shared.lobbyTimer !== false) {
+      // cancel timer
       shared.lobbyTimer = false;
       partyEmit("newChatMessage", {content: "Start game failed! Not enough players.", life: 10, colour:[5, 205]});
     }
   }
 }
 
+// Loop for progressing vote event
 function voteLoop() {
   if (partyIsHost()) {
     if (shared.lobbyTimer === false) {
+      // start timer
       shared.lobbyTimer = votingTime + 1;
       startSec = millis()/1000;
     }
     else if (shared.lobbyTimer <= 0) {
-
+      // begin eject animation
       partyEmit("gameStateChange", "localEject");
       partyEmit("gameStateChange", "play");
       shared.serverGameState = "play";
       shared.terrain = structuredClone(hostTerrain);
       shared.lobbyTimer = false;
-
-
-    
     }
     else if (millis()/1000 >= startSec + 1) {
+      // tick timer
       shared.lobbyTimer -= round(millis()/1000 - startSec);
       startSec = millis()/1000;
       if (Number.isInteger(votingTime / shared.lobbyTimer) || shared.lobbyTimer <= 5) {
         partyEmit("newChatMessage", {content: shared.lobbyTimer, life: 10, colour:[40, 205]});
       }
-      
     }
-
-
   }
 }
 
+// Subscribed function for changing game states
 function gameStateChange(data) {
   if (data === "play") {
     my.player.reset();
@@ -383,12 +365,12 @@ function gameStateChange(data) {
     voteAlarm.play();
     voted = false;
     my.player.reset();
-
   }
   else if (data === "localEject") {
     localGameState = "eject";
     let highestVotes = 0;
     
+    // Get highest voted player
     for (let ID of shared.votes.IDs) {
       if (shared.votes.total[shared.votes.IDs.indexOf(ID)] > highestVotes) {
         for (let guest of guests) {
@@ -414,7 +396,6 @@ function drawInit() {
   canvas3D.background(0);
   
   // create a global light so WEBGL doesn't just break when there are no lights
-
   if (my.player.type === "ghost") {
     canvas3D.pointLight(
       0,0,100,
@@ -427,12 +408,8 @@ function drawInit() {
       0,0,shared.ambientLevel,
       my.player.x,my.player.y - 800,my.player.z
     );
-
     canvas3D.ambientLight(0, 0, shared.ambientLevel);    
   }
-
-
-
   if (mouseIsPressed) {
     requestPointerLock();
   }
@@ -443,7 +420,6 @@ function drawInit() {
 // Creates a visualizer for the different hitboxes and colliders above the player if in debug mode
 function collideVisual() {
   if (shared.debugState) {
-    
     collideVisualCanvas.background(255);
     // draw environment hitboxes
     for (let terrainObject of shared.terrain) {
@@ -472,7 +448,6 @@ function collideVisual() {
           collideVisualCanvas.vertex(vert[0]/10, vert[1]/10);
         }
         collideVisualCanvas.endShape(CLOSE);
-
       }
       collideVisualCanvas.pop();
     }
@@ -545,16 +520,14 @@ function createLightSounds() {
       lightpos.push([guest.player.x,guest.player.z]);
     }
     if (guest.player.walking === true && frameCount % 20 === 0) {
+      push();
+      outputVolume(map(dist(my.player.x,my.player.z,guest.player.x,guest.player.z), 0, 2000, 1, 0, true));
 
       walkSounds[random([0,1,2,3,4,5,6])].play();
+      pop();
     }
-
-
-
   }
-  
 }
-
 
 // Calculate ambient lighting and draw player models
 function drawPlayers() {
@@ -579,7 +552,6 @@ function drawPlayers() {
         canvas3D.pop();
       }
     }
-
   }
 
   // draw demo player model if in debug mode
@@ -597,7 +569,6 @@ function drawPlayers() {
 function drawCrewMateModel(x,y,z,dir,h,hold,alive,type) {
   
   canvas3D.push();
-  
   
   // inititalize materials and position
   canvas3D.noStroke();
@@ -700,12 +671,12 @@ function drawCrewMateModel(x,y,z,dir,h,hold,alive,type) {
   
 }
 
+// Function for adding moving objects (add in next update)
 function updateEnvironment() {
   for (let terrainObject of shared.terrain) {
     if (terrainObject.type === "polygon") {
       // terrainObject.x += 0.5;
     }
-    
   }
 }
 
@@ -716,14 +687,12 @@ function drawEnvironment() {
     canvas3D.push();
 
     canvas3D.ambientMaterial(0,0,shared.ambientLevel);
-
     if (!shared.debugState) {
       canvas3D.noStroke();
     }
     else {
       canvas3D.normalMaterial();
     }
-
     canvas3D.translate(terrainObject.x,terrainObject.y,terrainObject.z);
     if (terrainObject.type === "box") {
       canvas3D.rotateY(terrainObject.rotation);
@@ -735,18 +704,15 @@ function drawEnvironment() {
     else if (terrainObject.type === "polygon") {
 
       let verts = terrainObject.relativeVertices;
-
       canvas3D.sphere(15);
       canvas3D.rotateY(-terrainObject.rotation);
 
       canvas3D.beginShape();
-      
       canvas3D.normal(0,1,0);
       for (let vert of verts) {
         canvas3D.vertex(vert[0], 0, vert[1]);
       }
       canvas3D.endShape(CLOSE);
-
 
       canvas3D.beginShape();
       canvas3D.normal(0,-1,0);
@@ -755,22 +721,16 @@ function drawEnvironment() {
       }
       canvas3D.endShape(CLOSE);
 
-
-      
-
       for (let i = 0; i < verts.length; i++) {
         let j = (i + 1) % verts.length;
 
         canvas3D.beginShape();
-
         let planeNormal = new p5.Vector(
           verts[j][0] - verts[i][0],
           verts[j][1] - verts[i][1]
         ).rotate(90);
 
         canvas3D.normal(planeNormal.x, 0, planeNormal.y);
-        
-        // normal(-(verts[j][0] - verts[i][0]) / (verts[j][1] - verts[i][1]), 0, 1);
         canvas3D.vertex(verts[i][0], 0, verts[i][1]);
         canvas3D.vertex(verts[j][0], 0, verts[j][1]);
         canvas3D.vertex(verts[j][0], -terrainObject.height, verts[j][1]);
@@ -795,6 +755,7 @@ function drawEnvironment() {
   }
 }
 
+// Draw stars in sky
 function drawSky() {
   canvas3D.push();
   canvas3D.translate(my.player.x, 0, my.player.z);
@@ -814,8 +775,9 @@ function drawSky() {
   canvas3D.pop();
 }
 
+// Get key input
 function keyTyped() {
-
+  // get username
   if (localGameState === "menu") {
     if (key === "Delete") {
       if (typingBar.charAt(typingBar.length - 1) === " ") {
@@ -829,6 +791,8 @@ function keyTyped() {
       typingBar = typingBar.concat(key);
     }
   }
+
+  // chat controls
   else {
     if (key === "Enter") {
       if (typingMode && typingBar.length > 0) {
@@ -838,7 +802,6 @@ function keyTyped() {
         else {
           partyEmit("newChatMessage", {content: `[${my.player.id}] ${typingBar}`, life: 10, colour: [my.player.h, 155]});
         }
-        
       }
       typingBar = "";
       typingMode = !typingMode;
@@ -847,11 +810,9 @@ function keyTyped() {
       if (typingBar.charAt(typingBar.length - 1) === " ") {
         typingBar = typingBar.slice(0,typingBar.length - 1);
       }
-
       while (typingBar.charAt(typingBar.length - 1) !== " " && typingBar.length > 0){
         typingBar = typingBar.slice(0,typingBar.length - 1);
       }
-
     }
     else if (typingMode) {
       typingBar = typingBar.concat(key);
@@ -861,7 +822,7 @@ function keyTyped() {
 
 }
 
-// Toggle debug mode
+// get Other key inputs that aren't apart of keyTyped such as backspace
 function keyPressed() {
 
   if (localGameState === "menu") {
@@ -869,10 +830,7 @@ function keyPressed() {
       typingBar = typingBar.slice(0,typingBar.length - 1);
     }
   }
-
   else {
-
-    
     if (typingMode) {
       if (keyCode === BACKSPACE && typingBar.length > 0 && !keyIsDown(17)) {
         typingBar = typingBar.slice(0,typingBar.length - 1);
@@ -884,11 +842,15 @@ function keyPressed() {
   }
 }
 
+// Push emitted message to local chat variable
 function newChatMessage(data) {
   chat.push(data);
 }
 
+// Runs a command if chat content starts with a "/"
 function runCommand(command) {
+
+  // vote command
   if (shared.serverGameState === "vote" && (command.slice(0,6) === "/vote" ||  command.slice(0,6) === "/vote ")) {
     if (voted) {
       chat.push({content: "You have already voted!", life: 10, colour: [0,255]});
@@ -914,16 +876,24 @@ function runCommand(command) {
       }
     }
   }
+
+  // eject animation command 
   else if (command.slice(0,6) === "/eject") {
     localGameState = "eject";
     votedPlayer = my.player;
   }
+
+  // voting mode skip command
   else if (command.slice(0,7) === "/voting") {
     shared.serverGameState = "vote";
   }
+
+  // timer skip command
   else if (command.slice(0,6) === "/skip") {
     shared.lobbyTimer = 3;
   }
+
+  // change player type from impostor, crewmate, and ghost
   else if (command.slice(0,9) === "/typeSet " || command.slice(0,9) === "/typeSet") {
     if (command.slice(9,10) === "") {
       chat.push({content: "Please specify a player name", life: 10, colour: [0,255]});
@@ -944,9 +914,6 @@ function runCommand(command) {
   else {
     chat.push({content: "Invalid Command!", life: 10, colour: [0,255]});
   }
-
-
-
 }
 
 function updateUI() {
@@ -958,6 +925,7 @@ function updateUI() {
   stroke(0, 0, 0);
   translate(width - 350, height - 50);
 
+  // draw typing box
   if (typingMode) {
     push();
     strokeWeight(2);
@@ -967,7 +935,7 @@ function updateUI() {
 
     strokeWeight(3);
 
-
+    //display typed content
     if (typingBar.length > 0) {
       fill(255, 205);
       stroke(0, 205);
@@ -979,14 +947,13 @@ function updateUI() {
       text("type here", 0, 0, 300);
     }
 
-    
-
     fill(255);
     stroke(0);
     pop();
   }
 
-  for (let i = chat.length - 1; i >= 0; i--) {
+  // display chat
+  for (let i = chat.length - 1; i >= (chat.length > 20 ? chat.length - 20 : 0); i--) {
     let lines = ceil(textWidth(chat[i].content) / 270);
     let chatHue, chatSaturation;
     if (chat[i].colour === undefined) {
@@ -998,11 +965,10 @@ function updateUI() {
       chatSaturation = chat[i].colour[1];
     }
 
-
     translate(0,-lines * 18 - 6);
 
+    // select opacity
     if (chat[i].life >= 2 || typingMode) {
-      
       fill(chatHue, chatSaturation, 255);
       stroke(0);
     } 
@@ -1015,9 +981,7 @@ function updateUI() {
       chat[i].life -= 0.03;
     }
     
-
     text(chat[i].content,0, 0, 300);
-    
   }
   pop(); 
 }
@@ -1182,8 +1146,6 @@ function findNormal(playerX,playerY,playerZ,playerDir,terrainObject) {
   return round((dir1 + dir2)/2,2);  
 }
 
-
-
 // Update player if killed
 function die(data) {
   if (data.id === my.player.id) {
@@ -1196,6 +1158,7 @@ function die(data) {
   }
 }
 
+// Rotates an (x,y) coordinate by some amount of degrees
 function angleShift(x, y, dt) {
   let theta = atan2(y,x) + dt;
   let localMag = Math.sqrt(x * x + y * y);
@@ -1203,7 +1166,7 @@ function angleShift(x, y, dt) {
 }
 
 
-// Buttonclass for the menu
+// Button class for the menu
 class Button {
   constructor(x, y, width, height, content, colour, destination) {
     this.x = x;
@@ -1214,6 +1177,8 @@ class Button {
     this.colour = colour;
     this.destination = destination;
   }
+
+  // redirects local game state if clicked
   update() {
     let mouseOver = mouseX >= this.x - this.width/2 && mouseX <= this.x + this.width/2 && mouseY >= this.y - this.height/2 && mouseY <= this.y + this.height/2;
     if (mouseOver) {
@@ -1222,14 +1187,11 @@ class Button {
         if (this.destination === "play") {
           connectToParty("room1");
           localGameState = "";
-
         }
         else {
           localGameState = this.destination;
         }
-        
       }
-
     }
   }
   draw() {
@@ -1269,6 +1231,7 @@ class Crewmate {
       this.x += this.dx;
       this.z += this.dz;
       this.y += this.dy;
+
       // point in direction of motion
       if (shared.playerPerspective === 3) {
         this.dir = atan2(this.dx,this.dz);
@@ -1277,7 +1240,6 @@ class Crewmate {
         this.dir = -camYaw - 90;
       }
 
-      
       // detect keyboard input
       if ((keyIsDown(83) + keyIsDown(87) === 1 || keyIsDown(65) + keyIsDown(68) === 1) && !typingMode) {
 
@@ -1310,6 +1272,7 @@ class Crewmate {
         this.dz = this.dz * (1 - shared.playerDeceleration);
       }
 
+      // vertical movement
       if ((keyIsDown(32) || keyIsDown(16)) && !typingMode) {
         this.dy -= keyIsDown(32) - keyIsDown(16);
         if (this.dy > shared.playerMaxVelocity) {
@@ -1368,16 +1331,11 @@ class Crewmate {
                 for (let i = 0; i < shared.votes.total.length; i ++) {
                   shared.votes.total[i] = 0;
                 }
-
-                
                 partyEmit("newChatMessage", {content: "Voting has begun. Use /vote [player_name] to vote for them to be ejected!", life: 10, colour:[40, 205]});
-          
               }
             }
-
           }
         }
-
       }
 
       // apply x velocity and check collisions
@@ -1391,10 +1349,8 @@ class Crewmate {
             this.x -= sin(n)/10;
             this.z -= cos(n)/10;
           }
-          
         }
       }
-
 
       // point in direction of motion
       if (shared.playerPerspective === 3) {
@@ -1411,7 +1367,6 @@ class Crewmate {
         touchingGround -= 1;
       }
 
-      
       for (let terrainObject of shared.terrain) {
         if (checkCollisions(this.x, this.y, this.z, terrainObject)) {
           if (this.dy >= 0) {
@@ -1473,11 +1428,7 @@ class Crewmate {
         // decelerate player
         this.dx = this.dx * (1 - shared.playerDeceleration);
         this.dz = this.dz * (1 - shared.playerDeceleration);
-
       }
-      
-      
-
     }
 
     // player state if not alive
@@ -1499,7 +1450,6 @@ class Crewmate {
           this.dz = mag * -cos(n);
         }
       }
-
 
       // apply y velocity and check collisions
       this.y += this.dy;
@@ -1554,6 +1504,5 @@ class Crewmate {
     this.dz = 0;
     this.alive = true;
   }
-  
 }
 
