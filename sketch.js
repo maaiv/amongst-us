@@ -41,7 +41,8 @@ let backgroundStars = [];
 
 let animationTimeline = 0;
 
-let my, guests, shared, killSFX, cam, collideVisualCanvas, canvas3D, menuButtons, startSec, guestPlayerIDs;
+let my, guests, shared, cam, collideVisualCanvas, canvas3D, menuButtons, startSec, guestPlayerIDs;
+let killSFX, voteAlarm, walkSounds = [];
 
 
 let lobbyTerrain = [
@@ -71,6 +72,10 @@ let chat = [
 // Connect to the server and shared data, and load sounds
 function preload() {
   killSFX = loadSound("assets/killSFX.mp3");
+  voteAlarm = loadSound("assets/voteAlarm.mp3");
+  for (let i = 1; i < 8; i++) {
+    walkSounds.push(loadSound("assets/walk/Footstep0" + i.toString() +".mp3"));
+  }
 }
 
 function connectToParty(roomID) {
@@ -87,7 +92,7 @@ function connectToParty(roomID) {
   partySubscribe("die", die);
   partySubscribe("newChatMessage", newChatMessage);
   partySubscribe("gameStateChange", gameStateChange);
-  shared = partyLoadShared("shared", {  
+  shared = partyLoadShared("shared", {
     ambientLevel: 0, 
     debugState: false, 
     terrain: structuredClone(lobbyTerrain), 
@@ -295,7 +300,7 @@ function gameLoop() {
   collideVisual();
   updateMyPlayer();
   updateCam();
-  createLights();
+  createLightSounds();
   drawPlayers();
   updateEnvironment();
   drawEnvironment();
@@ -367,7 +372,7 @@ function gameStateChange(data) {
     my.player.reset();
   }
   else if (data === "vote") {
-
+    voteAlarm.play();
     voted = false;
     my.player.reset();
 
@@ -520,7 +525,7 @@ function updateCam() {
 }
 
 // Create and store xy coordinate of each player light
-function createLights() {
+function createLightSounds() {
   lightpos = [];
 
   for (let guest of guests) {
@@ -533,8 +538,15 @@ function createLights() {
       );
       lightpos.push([guest.player.x,guest.player.z]);
     }
+
+    if (guest.player.walking && frameCount % 20 === 0) {
+      walkSounds[round(random([0,1,2,3,4,5,6]))].play();
+    }
+
   }
+  
 }
+
 
 // Calculate ambient lighting and draw player models
 function drawPlayers() {
@@ -1238,8 +1250,9 @@ class Crewmate {
     this.hold = 1;
     this.alive = true;
     this.id = noise(random(1,10));
-    this.type = "ghost";
+    this.type = "impostor";
     this.votes = 0;
+    this.walking = false;
   }
 
   update() {
@@ -1340,6 +1353,7 @@ class Crewmate {
             else if (guest.player !== my.player && mouseIsPressed && mouseButton === LEFT && !guest.player.alive) {
               if (dist(guest.player.x,guest.player.y,guest.player.z,my.player.x,my.player.y,my.player.z) < 300) {
                 partyEmit("gameStateChange", "vote");
+                
                 shared.serverGameState = "vote";
                 shared.terrain = structuredClone(lobbyTerrain);
 
@@ -1413,10 +1427,12 @@ class Crewmate {
       if (!touchingGround) {
         this.dy += shared.worldGravity;
       }
-
+      
+      
       // detect keyboard input
       if ((keyIsDown(83) + keyIsDown(87) === 1 || keyIsDown(65) + keyIsDown(68) === 1) && !typingMode) {
-
+        this.walking = touchingGround;
+        
         // perform math stuff to condense movement controls into a "single line" (this was a terrible idea)
         let magnitude = !keyIsDown(83) * 2 - 1;
         let dir = 
@@ -1444,7 +1460,9 @@ class Crewmate {
         // decelerate player
         this.dx = this.dx * (1 - shared.playerDeceleration);
         this.dz = this.dz * (1 - shared.playerDeceleration);
+        this.walking = false;
       }
+      
       
 
     }
