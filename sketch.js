@@ -70,7 +70,6 @@ for (let i = 1; i < 10; i += 1) {
 let chat = [];
 
 
-
 // load sounds
 function preload() {
   killSFX = loadSound("assets/killSFX.mp3");
@@ -299,7 +298,7 @@ function gameLoop() {
 // Loop for progressing lobby events
 function lobbyLoop() {
   if (partyIsHost()) {
-    if (guests.length >= 4) { 
+    if (guests.length >= 2) { 
       // start timer
       if (shared.lobbyTimer === false) {
         shared.lobbyTimer = 10;
