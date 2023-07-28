@@ -301,16 +301,19 @@ function lobbyLoop() {
     if (guests.length >= 2) { 
       // start timer
       if (shared.lobbyTimer === false) {
-        shared.lobbyTimer = 10;
+        shared.lobbyTimer = 2;
         startSec = millis()/1000;
       }
       else if (shared.lobbyTimer <= 0) {
         // start game
-        partyEmit("gameStateChange", "play");
-        partyEmit("newChatMessage", {content: "Starting game!", life: 10, colour:[60, 205]});
+        shared.impostorPlayerID = random(shared.votes.IDs);
+        
+        
         shared.serverGameState = "play";
         shared.terrain = structuredClone(hostTerrain);
         shared.lobbyTimer = false;
+        partyEmit("newChatMessage", {content: "Starting game!", life: 10, colour:[60, 205]}); 
+        partyEmit("gameStateChange", "play");
         
       }
       else if (millis()/1000 >= startSec + 1) {
@@ -324,6 +327,12 @@ function lobbyLoop() {
       // cancel timer
       shared.lobbyTimer = false;
       partyEmit("newChatMessage", {content: "Start game failed! Not enough players.", life: 10, colour:[5, 205]});
+    }
+    else {
+      if (frameCount % 600 === 0) {
+        partyEmit("newChatMessage", {content: "Waiting for more players.", life: 10, colour:[5, 0]});
+      }
+        
     }
   }
 }
@@ -358,6 +367,10 @@ function voteLoop() {
 // Subscribed function for changing game states
 function gameStateChange(data) {
   if (data === "play") {
+    if (shared.impostorPlayerID === my.player.id) {
+      my.player.type = "impostor";
+    }
+    console.log(my.player.id, shared.impostorPlayerID);
     my.player.reset();
   }
   else if (data === "vote") {
@@ -1200,7 +1213,7 @@ class Button {
     
     fill(0);
     textSize(34);
-    text("Frosty", this.x, this.y + this.height/5);
+    text("Play", this.x, this.y + this.height/5);
     pop();
   }
 }
@@ -1219,7 +1232,7 @@ class Crewmate {
     this.hold = 1;
     this.alive = true;
     this.id = noise(random(1,10));
-    this.type = "impostor";
+    this.type = "crewmate";
     this.votes = 0;
     this.walking = false;
   }
@@ -1497,6 +1510,11 @@ class Crewmate {
   reset() {
     this.x = random(-300, 300);
     this.y = -50;
+    for (let terrainObject of shared.terrain) {
+      while (checkCollisions(this.x, this.y, this.z, terrainObject)) {
+        this.y -= 10;
+      }
+    }
     this.z = random(-300, 300);
     this.dx = 0;
     this.dy = 0;
